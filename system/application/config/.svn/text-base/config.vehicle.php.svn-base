@@ -1,0 +1,68 @@
+<?php
+	$config['default_gpstable'] = "gps";
+	
+	$config['vehicle_T1'] = array("T1", "T1_1", "T1_U1", "PLN");
+	$config['vehicle_type'] = array('T1'=>'gprmc', 'T3'=>'sms', 'T4'=>'gtp', "indogps"=>"indogps", 'T4 Farrasindo'=>'farrasindo', 'T1_1'=>'T1_1', "pln"=>"pln", "T4 Andalas"=>"gtp_andalas", "T4 Agung Putra"=>"agungputra", "T4 New"=>"gtp_new", "T1_U1"=>"t1_2", "T5"=>"t5", "T5 PULSE"=>"t5_pulse", "T5 Fuel"=>"t5_fuel");
+	$config['vehicle_type_admin'] = array("T4 Farrasindo", "pln", "T4 Agung Putra");
+	$config['vehicle_type_visible'] = array('T1', 'T3', 'T4', 'indogps', 'T4 Farrasindo', 'pln', "T4 Agung Putra", "T4 New", "T1_U1", "T5", "T5 PULSE", "T5 Fuel"); 
+	$config['vehicle_type_replace'] = array('T1'=>'T1_1');	
+	$config['vehicle_image'] = array("car"=>"lcar", "truck"=>"ltruck", "dot"=>"ldot", "strada"=>"lstrada", "pickup"=>"lpickup", "innova"=>"linnova");
+	$config['vehicle_gtp'] = array('T4 FARRASINDO', 'T4', "T4 AGUNG PUTRA", "T4 NEW", "T5", "T5 PULSE","T5 FUEL");
+	$config['vehicle_gtp_door'] = array('T4 FARRASINDO', 'T4', "T4 AGUNG PUTRA", "T4 NEW");
+	$config['vehicle_gtp_engine2'] = array('T4 FARRASINDO', 'T4', "T4 AGUNG PUTRA", "T4 NEW");
+	$config['vehicle_t1'] = array('T1', 'T1_1', "PLN", "T1_U1");
+	$config['vehicle_t3'] = array('T3');
+	$config['vehicle_t5'] = array('T5', 'T5 PULSE');
+	$config['vehicle_pulse'] = array('T5 PULSE', 'T1', 'T1_1', 'T1_U1');
+	$config['vehicle_fuel'] = array("T5 FUEL");
+	$config['vehicle_odometer'] = array('T4','T4 NEW','T5', 'T5 PULSE','T5 FUEL');
+
+	$config['DUMP_TABLE'] = array("agent", "announcement", "bank", "cctv", "company", "config", "contactus", "group", "poi", "poi_category", "user", "vehicle");
+	$config['VTABLE'] = array("T1"=>"t1", "T1_1"=>"t1_1", "PLN"=>"t1_pln", "T3"=>"t3", "T4"=>"t4", "T4 FARRASINDO"=>"t4_farrasindo", "INDOGPS"=>"indogps", "T4 NEW"=>"t4_new", "T1_U1"=>"t1_2", "T5"=>"t5", "T5 FUEL"=>"t5_fuel");
+
+	$config['ALARMS'] = array(
+				 "01"=>"SOS button is pressed"
+				//,"02"=>"2nd button(call B)is pressed"
+				//,"03"=>"3rd button(call C) is pressed"
+				//,"04"=>"Reserved"
+				,"10"=>"Low battery alarm"
+				,"11"=>"over speed alar"
+				,"12"=>"Geo fence alarm"
+				//,"13"=>"Reserved"
+				,"14"=>"Tracker units reset or power up alarm"
+				,"15"=>"No GPS signal alarm"
+				,"16"=>"Out of no GPS signal area alarm"
+				,"20"=>"Cut off External Power Supply"
+				,"21"=>"Input port low to high edge alarm, voltage of input port rise from 0V to 10V---------"
+				,"31"=>"Input port high to low edge alarm, voltage of input port rise from 10V to 0V----------"
+				,"72"=>"Direction Chang Alarm"
+				);
+
+	$config['table_hist']['INDOGPS'] = 'gps_hist_indogps';
+	$config['table_hist']['PLN'] = 'gps_hist_t1_pln';
+	$config['table_hist']['T1'] = 'gps_hist_t1';
+	$config['table_hist']['T1_1'] = 'gps_hist_t1_1';
+	$config['table_hist']['T3'] = 'gps_hist_t3';
+	$config['table_hist']['T4'] = 'gps_hist_t4';
+	$config['table_hist']['T4 FARRASINDO'] = 'gps_hist_t4_farrasindo';
+	$config['table_hist']['T4 NEW'] = 'gps_hist_t4_new';
+	$config['table_hist']['T1_U1'] = 'gps_hist_t1_2';
+	$config['table_hist']['T5'] = 'gps_hist_t5';
+	$config['table_hist']['T5 PULSE'] = 'gps_hist_t5_pulse';
+	$config['table_hist']['T5 FUEL'] = 'gps_hist_t5_fuel';
+
+	$config['table_hist_info']['INDOGPS'] = 'gps_info_hist_indogps';
+	$config['table_hist_info']['PLN'] = 'gps_info_hist_t1_pln';
+	$config['table_hist_info']['T1'] = 'gps_info_hist_t1';
+	$config['table_hist_info']['T1_1'] = 'gps_info_hist_t1_1';
+	$config['table_hist_info']['T3'] = 'gps_info_hist_t3';
+	$config['table_hist_info']['T4'] = 'gps_info_hist_t4';
+	$config['table_hist_info']['T4 FARRASINDO'] = 'gps_info_hist_t4_farrasindo';
+	$config['table_hist_info']['T4 NEW'] = 'gps_info_hist_t4_new';
+	$config['table_hist_info']['T1_U1'] = 'gps_info_hist_t1_2';
+	$config['table_hist_info']['T5'] = 'gps_info_hist_t5';
+	$config['table_hist_info']['T5 PULSE'] = 'gps_info_hist_t5_pulse';
+	$config['table_hist_info']['T5 FUEL'] = 'gps_info_hist_t5_fuel';
+	
+	$config['restart_delay'] = 30;
+	$config['ip_colo'] = '119.235.20.251';

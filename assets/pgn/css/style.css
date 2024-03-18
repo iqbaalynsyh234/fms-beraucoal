@@ -1,0 +1,71 @@
+
+body {
+	background:#ffffff;
+	background-image:url(../images/background.png);
+	background-repeat:repeat-y;
+	background-position:center;
+	}
+
+.head_container {
+	border: 0px solid black;
+	width:1000px;
+	height:150px;
+	margin-top:-28px;
+	background-image:url(../images/head.png);
+	background-repeat:no-repeat;
+	}
+.head_text_container {
+	border:0px solid black;
+	width:420px;
+	height:121px;
+	background-image:url(../images/head_logo.png);
+	background-repeat:no-repeat;
+	margin-right:5px;
+	margin-top:15px;
+	float:right;
+	}
+.banner {
+	border:0px solid black;
+	width:1000px;
+	height:350px;
+	margin-top:-1px;
+	background-image:url(../images/content.png);
+	}
+
+.login {
+	border:0px solid black;
+	width:250px;
+	height:155px;
+	float:right;
+	margin-right:20px;
+	margin-top:180px;
+	}
+.login2 {
+	border:0px solid black;
+	width:250px;
+	height:80px;
+	float:left;
+	margin-right:30px;
+	margin-top:20px;
+	}
+.box_ym {
+	border: 0px solid black;
+	width :620px;
+	height:25px;
+	float:center;
+	margin-top:130px;
+	margin-left:-350px;
+	font-size:15px;
+	font-family:century gothic;
+	}
+	
+.copy {
+	border:0px solid black;
+	
+	
+	width :1000px;
+	height:20px;
+	text-shadow: 1px 1px 6px #010000;
+	font-size:13px;
+	margin-top:-12px;
+	}

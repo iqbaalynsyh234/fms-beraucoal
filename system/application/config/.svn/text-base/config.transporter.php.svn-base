@@ -1,0 +1,11 @@
+<?php
+		$config['template'] = 'transporter/';
+		//$config['mapinhome'] = true;
+		$config['license'] = "www.lacak-mobil.com";
+		//$config['login'] = "http://transporter.lacak-mobil.com";
+		//$config['transporter_agent_id'] = 1;
+		//$config['transporter_agent_name'] = "Jaya";
+		//$config['transporter_user_type'] = 2;
+		$config['transporter_user_type_name'] = "Regular";
+		//$config['cust_company'] = "3";
+		$config['GOOGLE_MAP_API_KEY'] = "ABQIAAAAi-rilXjtWa4N8goKibpm1hTQZCaXYr9Eb6bdggGxQOy5QP1nhxQXFrb_gY2qobVL5-YxSDVTMD2neg";

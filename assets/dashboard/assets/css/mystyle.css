@@ -1,0 +1,317 @@
+/* Chrome, Safari, Edge, Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* The Modal (background) */
+.modal {
+  display: none; /* Hidden by default */
+  position: fixed; /* Stay in place */
+  z-index: 1; /* Sit on top */
+  padding-top: 65px; /* Location of the box */
+  left: 0;
+  top: 0;
+  width: 100%; /* Full width */
+  height: 100%; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+  background-color: rgb(0,0,0); /* Fallback color */
+  background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+
+.modal_violation_frequency {
+  display: none; /* Hidden by default */
+  position: fixed; /* Stay in place */
+  z-index: 1; /* Sit on top */
+  padding-top: 65px; /* Location of the box */
+  margin-left: 10%;
+  margin-right: auto;
+  top: 0;
+  width: 50%; /* Full width */
+  height: 50%; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+  background-color: rgb(0,0,0); /* Fallback color */
+  background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+
+.modalbase64 {
+  display: none; /* Hidden by default */
+  position: fixed; /* Stay in place */
+  z-index: 1; /* Sit on top */
+  padding-top: 65px; /* Location of the box */
+  margin-left: 45%;
+  top: 0;
+  width: 16.5%; /* Full width */
+  height: 60%; /* Full height */
+}
+
+.modalformaintenance {
+  display: none; /* Hidden by default */
+  position: fixed; /* Stay in place */
+  z-index: 1; /* Sit on top */
+  padding-top: 65px; /* Location of the box */
+  left: 0;
+  top: 0;
+  width: 100%; /* Full width */
+  height: 100%; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+  background-color: rgb(0,0,0); /* Fallback color */
+  background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+
+.modal-content-maintenance {
+  background-color: #fefefe;
+  margin: auto;
+  padding: 20px;
+  border: 1px solid #888;
+  width: 50%;
+}
+
+/* Modal Content */
+.modal-content {
+  background-color: #fefefe;
+  margin: auto;
+  padding: 20px;
+  border: 1px solid #888;
+  width: 50%;
+}
+
+.modalkmlist {
+  display: none; /* Hidden by default */
+  position: fixed; /* Stay in place */
+  z-index: 9999; /* Sit on top */
+  padding-top: 65px; /* Location of the box */
+  left: 0;
+  top: 0;
+  width: 100%; /* Full width */
+  height: 100%; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+  background-color: rgb(0,0,0); /* Fallback color */
+  background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+
+/* Modal Content */
+.modal-content-kmlist {
+  background-color: #fefefe;
+  margin: auto;
+  padding: 20px;
+  border: 1px solid #888;
+  width: 100%;
+}
+
+.modal-content-statefrequency {
+  background-color: #fefefe;
+  margin: auto;
+  padding: 20px;
+  border: 1px solid #888;
+  width: 100%;
+}
+
+.modal-content-state {
+  background-color: #fefefe;
+  margin: auto;
+  padding: 20px;
+  border: 1px solid #888;
+  width: 100%;
+}
+
+.modal-content-state-imagebase64 {
+  background-color: #fefefe;
+  margin: auto;
+  padding: 20px;
+  border: 1px solid #888;
+  width: 100%;
+}
+
+.modalumum {
+  display: none; /* Hidden by default */
+  position: fixed; /* Stay in place */
+  z-index: 1; /* Sit on top */
+  padding-top: 65px; /* Location of the box */
+  left: 0;
+  top: 0;
+  width: 100%; /* Full width */
+  height: 100%; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+  background-color: rgb(0,0,0); /* Fallback color */
+  background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+
+.modal-content-state-umum {
+  background-color: #fefefe;
+  margin: auto;
+  padding: 20px;
+  border: 1px solid #888;
+  width: 50%;
+}
+
+#modalStateContentUmum{
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* The Close Button */
+.closethismodal {
+  width: -1%;
+  color: #aaaaaa;
+  margin-left: 45%;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.closethismodal:hover,
+.closethismodal:focus {
+  color: #000;
+  text-decoration: none;
+  cursor: pointer;
+}
+#modalStateContentFrequency{
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+#modalStateContent{
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+#modalStateContentimagebase64{
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+#modalStateMaintenance{
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+#modalKmAll{
+  max-height: 330px;
+  /* overflow-y: auto; */
+}
+
+#modalStateContentKosongan{
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+#modalStateContentMuatan{
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.modalTitleforAll {
+  font-size:20px;
+  font-weight: 600;
+  font-style: bold;
+}
+
+.closethismodalall {
+  width: -1%;
+  color: #aaaaaa;
+  margin-left: 65%;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.closethismodalall:hover,
+.closethismodalall:focus {
+  color: #000;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.closethismodalimagebase64 {
+  /* width: -1%; */
+  color: #aaaaaa;
+  margin-left: 75%;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.closethismodalimagebase64:hover,
+.closethismodalimagebase64:focus {
+color: #000;
+text-decoration: none;
+cursor: pointer;
+}
+
+.closethismodalkm {
+  width: -1%;
+  color: #aaaaaa;
+  margin-left: 60%;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.closethismodalkm:hover,
+.closethismodalkm:focus {
+  color: #000;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.modalCustomTitle{
+  font-size:20px;
+  font-weight: 600;
+  font-style: bold;
+}
+
+.modalPasswordBaru {
+  display: none; /* Hidden by default */
+  position: fixed; /* Stay in place */
+  z-index: 9999; /* Sit on top */
+  padding-top: 100px; /* Location of the box */
+  left: 0;
+  top: 0;
+  width: 100%; /* Full width */
+  height: 100%; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+  background-color: rgb(0,0,0); /* Fallback color */
+  background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+
+/* Modal Content */
+.modal-content-PasswordBaru {
+  background-color: #fefefe;
+  margin: auto;
+  padding: 20px;
+  border: 1px solid #888;
+  width: 50%;
+}
+
+.closethismodalallModalPasswordBaru {
+  width: -1%;
+  color: #aaaaaa;
+  margin-left: 55%;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.closethismodalallModalPasswordBaru:hover,
+.closethismodalallModalPasswordBaru:focus {
+  color: #000;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.closethismodalmaintenance {
+  width: -1%;
+  color: #aaaaaa;
+  margin-left: 65%;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.closethismodalmaintenance:hover,
+.closethismodalmaintenance:focus {
+  color: #000;
+  text-decoration: none;
+  cursor: pointer;
+}

@@ -1,0 +1,717 @@
+<?php
+if (!defined('BASEPATH')) exit('No direct script access allowed');
+class GPSModel extends Model {
+	var $earthRadius = 6371;
+	
+	function GPSModel () 
+	{				
+		parent::Model();		
+	}	
+	
+	function GetDirection($course)
+	{
+		if (($course < 11.25) || ($course > 348.75))
+		{
+			return 1;
+		}
+
+		$car = 1;
+		while(1)
+		{
+			if ($course <= 11.25) break;
+			
+			$car++;
+			$course -= 22.5;
+		}
+		
+		return $car;
+	}
+	
+	function getLocation($latlngs)
+	{
+		$sql = " SELECT * FROM ".$this->db->dbprefix."location WHERE (0 = 1) ";
+		for($i=0; $i < count($latlngs); $i++)
+		{
+			$sql .= " OR ((location_lat = '".$latlngs[$i][1]."') AND (location_lng = '".$latlngs[$i][0]."')) ";
+		}
+		
+		$q = $this->db->query($sql);
+		if ($q->num_rows() == 0) return false;
+		
+		$rows = $q->result();		
+		for($i=0; $i < count($rows); $i++)
+		{
+			$arr[$rows[$i]->location_lng][$rows[$i]->location_lat] = $rows[$i]->location_address;
+		}
+		
+		return $arr;
+	}
+	
+	function GeoReverseServiceA($url)
+	{
+		if (! function_exists("curl_init")) 
+		{
+			$data->error = 1;
+			$data->display_name = "Unknown addrees (err: CURL disabled)";
+			return $data;
+		}
+		
+		$ch = curl_init();
+		
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		
+		$lokasi = curl_exec($ch);
+		$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		
+		curl_close($ch);		
+		
+		if ($status != 200)
+		{
+			$data->error = 1;
+			$data->display_name = "Unknown addrees";
+			return $data;			
+		}
+		
+		return json_decode($lokasi);		
+	}
+
+	function GeoReverseService($url)
+	{
+		if (! function_exists("curl_init")) 
+		{
+			echo "Unknown address (err: CURL disabled)";
+			return;
+		}
+		
+		$ch = curl_init();
+		
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		
+		$lokasi = curl_exec($ch);
+		$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		
+		curl_close($ch);		
+
+		if ($status != 200)
+		{
+			echo "Unknown address";
+			return;			
+		}
+	
+		return $lokasi;		
+	}
+	
+	function GeoReverse($lat, $lng)
+	{
+		// cari dulu di db lokal
+		
+		$isgooglecity = false;
+		
+		$googlecity = $this->config->item("googlecity");
+		$googlecities = explode(",", $googlecity);
+
+		$this->db->where("CONTAINS( street_line, GEOMFROMTEXT(  'Point(".$lng." ".$lat.")'))");
+		$q = $this->db->get("street");
+		$this->db->flush_cache();
+		
+		$streetname = "";
+		$isstreetname = $q->num_rows() > 0;
+		if ($q->num_rows() > 0)
+		{
+			$rowstreet=$q->result();
+			foreach($rowstreet as $obj){
+			$obj_serialize = json_decode($obj->street_serialize);
+			$count_coordinates = count($obj_serialize->geometry->coordinates[0]);
+			$arr[$count_coordinates] = $obj->street_name;
+		}
+			krsort($arr);
+			$streetname = end($arr)." ";
+		}
+		
+		$this->db->where("CONTAINS( ogc_geom, GEOMFROMTEXT(  'Point(".$lng." ".$lat.")'))");
+		$q = $this->db->get("desa", 1);
+		$this->db->flush_cache();
+		
+		$address = "";
+		
+		if ($q->num_rows() > 0)
+		{					
+			$rowdesa = $q->row();			
+			$address = $streetname.$rowdesa->DESA." ".$rowdesa->KECAMATAN." ".$rowdesa->KAB_KOTA." ".$rowdesa->PROPINSI;//." ".$rowdesa->KODE;
+			
+			if (in_array(strtoupper($rowdesa->KAB_KOTA), $googlecities))
+			{
+				$isgooglecity = true;
+			}
+		}
+		else
+		{
+						
+			$this->db->where("CONTAINS( ogc_geom, GEOMFROMTEXT(  'Point(".$lng." ".$lat.")'))");
+			$q = $this->db->get("kecamatan", 1);
+			$this->db->flush_cache();
+			
+			if ($q->num_rows() > 0)
+			{
+				$rowkec = $q->row();
+				$address = $streetname.$rowkec->LABEL." ".$rowkec->KABUPATEN;
+				
+				if (in_array(strtoupper($rowkec->KABUPATEN), $googlecities))
+				{
+					$isgooglecity = true;
+				}				
+			}
+
+			$this->db->where("kabkota_status", 1);
+			$this->db->where("CONTAINS( ogc_geom, GEOMFROMTEXT(  'Point(".$lng." ".$lat.")'))");
+			$q = $this->db->get("kabkota", 1);
+			$this->db->flush_cache();
+			
+			if ($q->num_rows() > 0)
+			{
+				$rowkabkota = $q->row();
+				
+				if (in_array(strtoupper($rowkabkota->KAB_KOTA), $googlecities))
+				{
+					$isgooglecity = true;
+				}
+								
+				$address .= " ".$rowkabkota->KAB_KOTA." ".$rowkabkota->PROPINSI;
+			}						
+		}
+		
+		if (! $isgooglecity)
+		{
+			if (! $isstreetname)
+			{
+				$this->db->where("CONTAINS( ogc_geom, GEOMFROMTEXT(  'Point(".$lng." ".$lat.")'))");
+				$q = $this->db->get("jalan", 1);
+				$this->db->flush_cache();
+				
+				if ($q->num_rows() > 0)
+				{
+					$rowjalan = $q->row();			
+					if ($rowjalan->LABEL)
+					{
+						$address = $rowjalan->LABEL.", ".$address;			
+					}
+				}
+		
+				$this->db->where("CONTAINS( ogc_geom, GEOMFROMTEXT(  'Point(".$lng." ".$lat.")'))");
+				$q = $this->db->get("jalanext", 1);
+				$this->db->flush_cache();
+				
+				if ($q->num_rows() > 0)
+				{
+					$rowjalan = $q->row();						
+					if ($rowjalan->LABEL)
+					{
+						$address = $rowjalan->LABEL.", ".$address;						
+					}
+				}
+			}
+			
+			if (strlen($address) > 0)
+			{
+				//$lokasi->display_name = 'lokal: '.$address;
+				$lokasi->display_name = trim($address);
+				if (strlen($lokasi->display_name)) return $lokasi;
+			}	
+		}
+		
+		if ($isstreetname)
+		{
+			$lokasi->display_name = trim($streetname);
+			if (strlen($lokasi->display_name)) return $lokasi;
+		}
+		
+		$this->db->where("location_lat", $lat);
+		$this->db->where("location_lng", $lng);
+		$q = $this->db->get("location");
+		
+		if ($q->num_rows() > 0)
+		{			
+			$row = $q->row();
+			$row->display_name = $row->location_address;
+			
+			return $row;
+		}
+				
+		$lokasi = $this->GeoReverseService("http://".$this->config->item("georeverse_host")."/map/georeverse/".$lat."/".$lng);	
+		$temp->display_name = $lokasi;
+
+		if ($lokasi == "Unknown address") 
+		{			
+			return $temp;
+		}
+		
+		if ($lokasi == "Unknown address (err: CURL disabled)")
+		{
+			return $temp;
+		}
+		
+		unset($data);
+		$data['location_lat'] = $lat;
+		$data['location_lng'] = $lng;
+		$data['location_address'] = $temp->display_name;
+		
+		$mydb = $this->load->database("master", TRUE);
+		$mydb->insert("location", $data);		
+		
+		$this->db->cache_delete_all();
+		
+		return $temp;				
+	}
+	
+	
+	function getGPSTableError($type)
+	{
+		$t = strtoupper($type);
+		
+		if ($t == "T1") return "gps_error";
+		if ($t == "T1_1") return "gps_t1_1_error";
+		if ($t == "T1 PLN") return "gps_pln_error";		
+		if ($t == "T4") return "gps_gtp_error";
+		
+		return "";
+	}
+	
+	function getGPSTable($type)
+	{
+		$arr = $this->config->item('vehicle_type');
+		$temp = $arr;
+		
+		foreach($temp as $key=>$val)
+		{
+			$arr[strtoupper($key)] = $val;
+			$arr[strtolower($key)] = $val;
+		}
+		
+		if (($type == "T1") || ($type == ""))
+		{
+			return $this->config->item('default_gpstable');
+		}
+		
+		return "gps_".strtolower($arr[strtolower($type)]);
+	}
+
+	function getGPSInfoTable($type)
+	{
+		$arr = $this->config->item('vehicle_type');
+
+                foreach($arr as $key=>$val)
+                {
+                        $arr[strtoupper($key)] = $val;
+                        $arr[strtolower($key)] = $val;
+                }
+		
+		if (($type == "T1") || ($type == ""))
+		{
+			return "gps_info";
+		}
+		
+		return "gps_info_".$arr[strtolower($type)];
+	}
+	
+	function GetLastInfo($name, $host, $georeverse=true, $row=false, $lasttime=0, $type="")
+	{
+		$table = $this->getGPSTable($type);
+		
+		if (! $row)
+		{		
+			if ($lasttime)
+			{
+				//$this->db->where("gps_time >", date("Y-m-d H:i:s", $lasttime));
+			}
+
+			$this->db->limit(1);
+			$this->db->order_by("gps_time", "desc");
+			$this->db->where("gps_name", $name);
+			$this->db->where("gps_host", $host);
+			$q = $this->db->get($table);
+			
+			if ($q->num_rows() == 0) return;
+			
+			$row = $q->row();
+			$q->free_result();
+			
+			$tnow = dbmaketime($row->gps_time)+7*3600;
+			
+			$tableerr = $this->getGPSTableError($type);
+			if ($tableerr && ($tnow < mktime()))
+			{
+				$sql = "
+						SELECT *
+						FROM
+						(
+							SELECT 	* 
+							FROM  	`".$this->db->dbprefix.$tableerr."` 
+							WHERE  	1
+									AND (`gps_name` =  '".$name."')
+									AND (`gps_host` =  '".$host."')
+							".($lasttime ? ("AND (gps_time > '".date("Y-m-d H:i:s", $lasttime)."')") : '')."
+							) t1
+						WHERE 	1
+						ORDER BY 	gps_time DESC 
+						LIMIT 1 OFFSET 0
+				";
+				
+				$q = $this->db->query($sql);
+				
+				if ($q->num_rows())
+				{
+					$rowerr = $q->row();
+					
+					$t = dbmaketime($row->gps_time);
+					$terr = dbmaketime($rowerr->gps_time);
+					
+					if (($terr < mktime()) && ($terr > $t))
+					{
+						$row->gps_time = $rowerr->gps_time;
+						$row->gps_utc_coord = $rowerr->gps_utc_coord;
+						$row->gps_utc_date = $rowerr->gps_utc_date;
+						//$row->gps_latitude = $rowerr->gps_latitude;
+						//$row->gps_longitude = $rowerr->gps_longitude;
+					}
+				}
+			}
+			
+			$tv = dbmaketime($row->gps_time);
+			$tv += 7*3600;
+			
+			$tvj = mktime(date("G", $tv), 0, 0, date("n", $tv), date('j', $tv), date('Y', $tv));
+			$nowj = mktime(date('G'), 0, 0, date("n"), date("j"), date("Y"));
+
+			if (($row->gps_latitude*1 == 0) || ($row->gps_longitude*1 == 0) || ($tvj > $nowj))
+			{
+				if ($lasttime)
+				{
+					$this->db->where("gps_time >", date("Y-m-d H:i:s", $lasttime));
+				}
+
+				$this->db->limit(1);
+				$this->db->order_by("gps_time", "desc");
+				$this->db->where("gps_name <=", date("Y-m-d H:i:s"));
+				$this->db->where("gps_name", $name);
+				$this->db->where("gps_host", $host);
+				$this->db->where("gps_latitude <>", 0);
+				$this->db->where("gps_longitude <>", 0);
+				$q = $this->db->get($table);
+				
+				if ($q->num_rows() == 0) 
+				{
+					
+					$tblhists = $this->config->item("table_hist");
+					$tblhist = $tblhists[strtoupper($type)];
+					
+					$this->db->limit(1);
+					$this->db->order_by("gps_time", "desc");
+					$this->db->where("gps_name", $name);
+					$this->db->where("gps_host", $host);
+					$this->db->where("gps_latitude <>", 0);
+					$this->db->where("gps_longitude <>", 0);
+					$q = $this->db->get($tblhist);
+					
+					if ($q->num_rows() == 0) return;
+				}
+				
+				$row1 = $row;
+				$row = $q->row();
+				$q->free_result();
+				$row->gps_time = $row1->gps_time;
+				$row->gps_status = "V";
+				$row->gps_utc_date = $row1->gps_utc_date;
+				$row->gps_utc_coord = $row1->gps_utc_coord;
+			}
+		}						
+		
+		
+		$tgl = floor($row->gps_utc_date/10000);
+		$bln = floor(($row->gps_utc_date%10000)/100);
+		$thn = (($row->gps_utc_date%10000)%100)+2000;
+
+		$jam = floor($row->gps_utc_coord/10000);
+		$min = floor(($row->gps_utc_coord%10000)/100);
+		$det = ($row->gps_utc_coord%10000)%100;
+
+		$mtime = mktime($jam+7,$min, $det, $bln, $tgl, $thn);
+		$mtimeori = mktime($jam,$min, $det, $bln, $tgl, $thn);
+		
+		// cek apakah data updated		
+		
+		$delays = $this->config->item("css_tracker_delay");
+		$delay = $delays[count($delays)-2][0]*60;
+		if ((mktime() - $mtime) > $delay)
+		{
+			//$this->notice_datadelay($name, $host, $mtime);
+		}
+		
+		$row->gps_timestampori = $mtimeori;
+		$row->gps_timestamp = $mtime;
+					
+		$row->gps_date_fmt = date("d/m/Y", $mtime);
+		$row->gps_time_fmt = date("H:i:s", $mtime);
+		
+		$row->gps_longitude_real = getLongitude($row->gps_longitude, $row->gps_ew);
+		$row->gps_latitude_real = getLatitude($row->gps_latitude, $row->gps_ns);
+		
+		$row->gps_longitude_real_fmt = number_format($row->gps_longitude_real, 4, ".", "");
+		$row->gps_latitude_real_fmt = number_format($row->gps_latitude_real, 4, ".", "");		
+
+		$mtime = mktime($jam+7,$min, $det, $bln, $tgl, $thn);				
+		$nowtime = mktime(date('G'), date('i'), date('s'), date('n'), date('j'), date('Y'));
+		
+		$arr = $this->lang->line('lmonth');
+		
+		$row->gps_date_fmt = date("j ",$mtime).$arr[date("n", $mtime)-1].date(" Y", $mtime);
+		$row->gps_time_fmt = date("H:i:s", $mtime);
+		$row->gps_speed_fmt = number_format($row->gps_speed*1.852, 0, "", ".");
+		
+		$delays = $this->config->item("css_tracker_delay");
+		if (is_array($delays))
+		{
+			$found = false;
+			for($i=0; $i < count($delays); $i++)
+			{
+				$deviasi = $nowtime-$mtime;
+				if ($deviasi < ($delays[$i][0]*60)) continue;
+				
+				//echo $rows[$i]->gps_name." :: ".$rows[$i]->gps_host." :: ".$val[0]." :: ".date("M, jS Y H:i:s", $mtime)." :: ".date("M, jS Y H:i:s", $nowtime)."<br />\r\n";
+				
+				$row->css_delay_index = $i;
+				$row->css_delay = $delays[$i];
+				$row->css_delay_time = $deviasi." :: ".date('Ymd His', $nowtime)." :: ".date('Ymd His', $mtime);
+				$found = true;
+				break;
+			}
+			
+			if (! $found)
+			{
+				$row->css_delay = $delays[count($delays)-1];
+				$row->css_delay_time = 0;
+				$row->css_delay_index = count($delays)-1;
+			}
+		}		
+		
+		if ($row->gps_speed*1)
+		{
+			$row->car_icon = $this->GetDirection($row->gps_course);	
+		}
+		else
+		{
+			$row->car_icon = 0;	
+		}
+
+		if ($georeverse)
+		{
+			$row->georeverse = $this->GeoReverse($row->gps_latitude_real_fmt, $row->gps_longitude_real_fmt);
+		}
+		
+		return $row;
+	}
+	
+    function distanceByRadian($lat1, $lng1, $lat2, $lng2) {
+        if (
+            $lat1 and $lat2 and $lng1 and $lng2
+            and (($lat1 != $lat2) and ($lng1 != $lng2))
+        ) {
+            return acos(sin($lat1)*sin($lat2)+cos($lat1)*cos($lat2)*cos($lng2-$lng1))* $this->earthRadius;
+        } else {
+            return 0;
+        }
+    }
+    
+    function distanceByDegree($lat1, $lng1, $lat2, $lng2) {
+        return $this->distanceByRadian(deg2rad($lat1), deg2rad($lng1), deg2rad($lat2), deg2rad($lng2));
+    }    
+    
+    function notice_datadelay($name, $host, $mtime)
+    {
+    	$this->load->helper('common');
+    	
+    	$this->db->where("vehicle_device", $name.'@'.$host);
+    	$q = $this->db->get("vehicle");
+    	
+    	if ($q->num_rows() == 0) return;
+    	
+    	$vehicle = $q->row();
+    	
+    	// cek apakah hari ini sudah dikirim notice    	    	
+/*    	
+    	$this->db->where("notice_status", 1);
+    	$this->db->where("notice_vehicle", $vehicle->vehicle_device);
+    	$this->db->where("notice_created >=", date("Y-m-d 00:00:00"));
+    	$this->db->where("notice_type", "datadelay");	
+    	$total = $this->db->count_all_results("notice");
+    	
+    	if ($total > 0) return;
+*/    	    	
+    	$this->noticedelaydata($vehicle->vehicle_device, $mtime);
+    }
+    
+	function noticedelaydata($device, $time)
+	{
+		if (! $device) return;
+		
+    	$this->db->where("vehicle_device", $device);
+    	$this->db->join("user", "user_id = vehicle_user_id");
+    	$this->db->join("agent", "agent_id = user_agent", "left outer");
+    	$q = $this->db->get("vehicle");
+    	
+    	if ($q->num_rows() == 0) return;    	    	
+    	
+    	$vehicle = $q->row();    	
+    	
+    	if ($vehicle->user_agent == $this->config->item("GPSANDALASID"))
+    	{
+    		$tos = $this->config->item("GPSANDALAS_MAIL");
+    	}
+    	
+    	$params['vehicle'] = $vehicle;		
+    	$params['lastreceive'] = $time;		
+    	
+    	if ($vehicle->user_agent == $this->config->item("GPSANDALASID"))
+    	{
+			$params['ownerurl'] = "http://www.gpsandalas.com";
+			$params['owner'] = "GPS Andalas Coorp.";
+			
+			$mailservice = "http://tracker.gpsandalas.com/cron/sendmail";
+			$sender = "support@gpsandalas.com";
+			$sendername = "GPS Andalas Coorp.";
+			$subject = sprintf($this->lang->line('lnoticedelay_subject'), $sendername, $vehicle->vehicle_name." ".$vehicle->vehicle_no );			
+		}
+		else
+		{
+			$params['ownerurl'] = "http://www.lacak-mobil.com";
+			$params['owner'] = "lacak-mobil.com";
+			
+			$mailservice = "http://www.lacak-mobil.com/cron/sendmail";
+			$sender = "support@lacak-mobil.com";
+			$sendername = "lacak-mobil.com";
+			$subject = sprintf($this->lang->line('lnoticedelay_subject'), $sendername, $vehicle->vehicle_name." ".$vehicle->vehicle_no );			
+		}
+    	
+		$message = $this->load->view("vehicle/noticedelay", $params, true);
+		    	
+		$this->load->library('email');
+		$this->load->helper('email');
+		
+		if (valid_email($vehicle->user_mail))
+		{
+			$tos[] = $vehicle->user_mail;
+		}
+				
+    	// get admin
+    	
+    	$this->db->distinct();
+    	$this->db->select("user_mail");
+    	$this->db->where("user_type", 1);
+    	$q = $this->db->get("user");
+    	$rows = $q->result();
+    	    	
+    	for($i=0; $i < count($rows); $i++)
+    	{
+			if (! valid_email($rows[$i]->user_mail)) continue;
+			$ccs[] = $rows[$i]->user_mail;
+    	}
+    	
+    	// get agent
+    	
+    	$this->db->distinct();
+    	$this->db->select("user_mail");
+    	$this->db->where("user_agent", $vehicle->user_agent);
+    	$this->db->where("user_type", 3);    
+    	$q = $this->db->get("user");    	
+    	$rows = $q->result();
+
+    	for($i=0; $i < count($rows); $i++)
+    	{
+    		if (! valid_email($rows[$i]->user_mail)) continue;
+    		
+    		$tos[] = $rows[$i]->user_mail;
+    	}
+    	
+    	if ((! (isset($tos))) && (! (isset($ccs))))
+    	{
+    		return;
+    	}
+    	
+    	if (isset($tos))
+    	{    		
+    		$json['to'] = $tos;
+    		if (isset($ccs))
+    		{
+    			$json['ccs'] = $ccs;
+    			maillocalhost($subject, $message, implode(",", $tos), $mailservice, $sender, $sendername, true, implode(",", $ccs));
+    		}
+    		else
+    		{
+    			maillocalhost($subject, $message, implode(",", $tos), $mailservice, $sender, $sendername, true);
+    		}
+    	}
+    	else
+    	{
+    		$json['to'] = $ccs;
+    		maillocalhost($subject, $message, implode(",", $ccs), $mailservice, $sender, $sendername, true);
+    	}
+    	    	 
+		
+		/*    	
+		$config['protocol'] = "mail";
+		$config['mailtype'] = "html";		
+		$this->email->initialize($config);
+    	    	    	 
+    	if (isset($tos))
+    	{
+    		$this->email->to($tos);
+    		$json['to'] = $tos;
+    		
+    		if (isset($ccs))
+    		{
+    			$this->email->bcc($ccs);
+    			$json['ccs'] = $ccs;
+    		}
+    	}
+    	else
+    	{
+    		$this->email->to($ccs);
+    		$json['to'] = $ccs;
+    	}
+
+		if (valid_email($vehicle->agent_mail))
+		{
+    		$this->email->from($vehicle->agent_mail, $vehicle->agent_mail_name);
+    	}
+    	else
+    	{
+    		$this->email->from($this->config->item("admin_mail"), $this->config->item("admin_name"));
+    	}
+    	
+    	$this->email->subject($subject);
+    	$this->email->message($message);    	    	
+    	
+    	if (@$this->email->send()) 
+    	{
+    		$insert['notice_status'] = 1;
+    	}
+    	else
+    	{
+    		$insert['notice_status'] = 2;
+    		$json['error'] = $this->email->print_debugger();
+    	}
+    	*/    	
+
+		$insert['notice_status'] = 1;
+		$insert['notice_desc'] = json_encode($json);
+    	$insert['notice_vehicle'] = $vehicle->vehicle_device;    	
+    	$insert['notice_created'] = date("Y-m-d H:i:s");
+    	$insert['notice_type'] = "datadelay";
+
+		$mydb = $this->load->database("master", TRUE);
+    	$mydb->insert("notice", $insert);    	
+    	
+    	$this->db->cache_delete_all();
+	}    
+}

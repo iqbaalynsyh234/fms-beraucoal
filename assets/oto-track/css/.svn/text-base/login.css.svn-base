@@ -1,0 +1,131 @@
+html,body,div,span,applet,object,iframe,h1,h2,h3,h4,h5,h6,blockquote,pre,a,abbr,acronym,address,big,cite,code,del,dfn,em,font,img,ins,kbd,q,s,samp,small,strike,strong,sub,sup,tt,var,dd,dl,dt,li,ol,ul,form,label,legend,table,caption,tbody,tfoot,thead,tr,th,td{margin:0;padding:0;border:0;font-weight:normal;font-style:normal;text-align:left;font-family:inherit;}table{border-collapse:collapse;border-spacing:0;}ol,ul{list-style:none;}q:before,q:after,blockquote:before,blockquote:after{content:"";}
+a:link, a:visited{ text-decoration: none; color: #4184c8; }
+a:active, a:hover{ color: #178ffe; }
+body{ color: #2d2d2d; line-height: 20px; font-size: 16px; font-family: "Helvetica Neue", Verdana, Arial, sans-serif; }
+body#home{ color: #2d2d2d; background-color: white; background-position: 0 -10px; background-repeat: repeat-x; line-height: 20px; font-size: 16px; font-family: "Helvetica Neue", Verdana, Arial, sans-serif; }
+h1{ line-height: 44px; margin-bottom: 10px; font-size: 40px; font-weight: bold; }
+#home h1{ font-style: normal; font-weight: normal; color: white; margin-top: -20px; line-height: 33px; margin-bottom: 20px; font-size: 26px; }
+h1#logo{ margin-top: 0px; color: #161616; font-weight: bold; line-height: 42px; font-size: 38px; }
+h2{ color: black; font-style: normal; line-height: 30px; margin-bottom: 15px; font-size: 28px; font-weight: normal; }
+h3{ color: black; margin-top: 15px; margin-bottom: 15px; font-size: 20px; }
+div.container{ clear: both; margin-left: auto; margin-bottom: 0px; margin-right: auto; margin-top: auto; width: 950px; }
+div#header{ background-position: 0 top; background-color: black; background-repeat: repeat-x; background-image: url(../images/nav-back.png); padding-bottom: 15px; padding-top: 15px; height: 50px; width: 100%; }
+div#header h1{ float: left; }
+div#nav{ float: right;}
+div#nav ul{ margin-left: auto; margin-bottom: auto; margin-right: auto; margin-top: 5px; list-style-image: url(none); clear: both; list-style-type: none;   }
+div#nav li{ font-style: normal; font-weight: normal; display: inline; list-style-type: none; }
+div#nav a:link, div#nav a:visited{ margin-right: 5px; padding-left: 15px; padding-bottom: 10px; padding-right: 15px; padding-top: 9px; text-align: center; float: left; display: inline; font-weight: bold; color: #e2e2e2; text-decoration: none; }
+div#nav li a:hover{ border-style: none; background-color: #f5f5f5; color: black; }
+#home #nav #home-tab {color: white;background-color: #3c3c3c;}
+#tour #nav #tour-tab {color: white;background-color: #3c3c3c;}
+#how #nav #tour-tab {color: white;background-color: #3c3c3c;}
+#feat #nav #feat-tab {color: white;background-color: #3c3c3c;}
+#help #nav #help-tab {color: white;background-color: #3c3c3c; }
+#pricing #nav #sign-tab {color: white;background-color: #3c3c3c;}
+div#main{ background-color: #161616; width: 100%; }
+#feat div#main{ padding-bottom: 20px; padding-top: 20px; background: url(../images/onyx-bg.png) repeat-x 0 -120px; width: 100%; }
+#how-it-works div#main{ background: url(../images/onyx-bg.png) repeat-x 0; width: 100%; }
+#pricing div#main{ margin: auto; text-align: center; width: 100%; }
+#pricing div#main .container { padding-top: 20px; margin: auto; text-align: center; }
+#pricing div#main .container h1 { text-align: center; margin-bottom: 20px; margin-top: 10px; color: white; font-style: normal; font-weight: normal; font-size: 26px; }
+#home div#banner-cont{ text-align: center; height: 390px; margin: auto; padding-left: 0px; padding-bottom: 20px; padding-right: 0px; padding-top: 0px; width: 950px; background-repeat: no-repeat; background-image: url(../images/banner-hm-onyx-2.jpg); background-position: center 0px; }
+#home div#banner-cont img { text-align: center; }
+#features div#banner-cont{ height: 115px; margin: auto; background-position: center -20px; padding-left: 0px; padding-bottom: 20px; padding-right: 0px; padding-top: 0px; width: 950px; background-repeat: no-repeat; background-image: url(../images/banner-feat.png); }
+#tour div#banner-cont{ height: 115px; margin: auto; background-position: center -20px; padding-left: 0px; padding-bottom: 20px; padding-right: 0px; padding-top: 0px; width: 950px; background-repeat: no-repeat; background-image: url(../images/banner-feat.png); }
+#help div#main h1 { text-align: center; margin-bottom: 5px; color: white; font-style: normal; font-weight: normal; font-size: 36px; }
+div#main h1{ }
+div#main_left{ margin-bottom: 25px; margin-top: 25px; float: left; width: 500px; }
+ul.faq li{ margin-bottom: 5px; padding-left: 40px; background-position: left 2px; background-repeat: no-repeat; background-image: url(../images/711.png); }
+div#main_right{ background-color: #e6e6e6; margin-bottom: 25px; margin-top: 25px; float: right; padding: 25px; width: 310px; }
+div#footer{ background-color: #161616; min-height: 100px; padding-top: 30px; margin-bottom: -100px; width: 100%; color: white; }
+div.clear{ padding: 10px; clear: both; }
+a.signup{ color: #3c3c3c; font-weight: bold; text-decoration: underline; padding: 15px; font-size: 20px; background-color: #a2e772; }
+strong{ font-weight: bold; }
+p.bannertext{ color: white; margin-top: 0px; line-height: 28px; font-size: 24px; }
+p.bannertext-sub{ margin-top: -12px; line-height: 28px; font-size: 18px; }
+p.bannertext-full{ font-style: italic; text-align: left; margin-top: 0px; line-height: 26px; font-size: 20px; }
+p.bannertext-tour{ font-style: italic; text-align: left; margin-top: 0px; line-height: 26px; font-size: 20px; }
+div.float300{ padding-right: 15px; font-size: 14px; padding-bottom: 30px; padding-top: 0px; width: 300px; float: left; }
+div.float300 h3{ margin-bottom: 5px; line-height: 28px; font-size: 22px; color: #161616; }
+div.float500{ padding-right: 15px; font-size: 14px; padding-bottom: 30px; padding-top: 0px; width: 600px; float: left; }
+div.float500 h3{ font-style: italic; margin-bottom: 10px; line-height: 28px; font-size: 24px; color: #161616; }
+#feat div.float500{ padding-right: 15px; font-size: 14px; padding-bottom: 30px; padding-top: 0px; width: 450px; float: left; }
+#feat div.float500 h3{ font-style: italic; margin-bottom: 10px; line-height: 28px; font-size: 24px; color: #161616; }
+div.float200{ background-color: #fff4da; padding: 15px; margin-right: 15px; width: 190px; float: left; }
+div.float200-how{ border-style: solid; border-color: #e2e2e2; border-width: 10px; padding: 15px; background-color: white; height: 335px; margin-right: 10px; width: 185px; float: left; }
+div#float200-high{ margin-top: -10px; height: 280px; width: 200px; background-color: #f0f6ff; }
+div.float200 h2 { color: #178ffe; }
+.header1{ font-style: italic; margin-bottom: 10px; line-height: 28px; font-size: 24px; color: #161616; }
+.header2{ margin-bottom: 0px; font-weight: bold; line-height: 28px; font-size: 18px; color: #161616; }
+span.minutes{ color: white; font-weight: bold; font-size: 24px; }
+span.price{ color: white; text-align: center; font-weight: bold; font-size: 24px; }
+.smallfonts{ font-size: 12px; }
+ul#signfeat{ height: 140px; min-height: 100px; margin-top: 10px; }
+ul#signfeat li.ext{ line-height: 20px; font-size: 0.85em; padding-left: 25px; background-position: left top; background-image: url(../images/user_silhouette.png); background-repeat: no-repeat; }
+ul#signfeat li.mail{ line-height: 20px; font-size: 0.85em; padding-left: 25px; background-position: 1px 2px; background-image: url(../images/email.png); background-repeat: no-repeat; }
+ul#signfeat li.fax{ line-height: 20px; font-size: 0.85em; padding-left: 25px; background-position: left top; background-image: url(../images/print.png); background-repeat: no-repeat; }
+ul#signfeat li{ color: white; line-height: 20px; font-size: 0.85em; padding-left: 25px; background-position: left top; background-image: url(../images/711.png); background-repeat: no-repeat; }
+a.joinbutton{ width: 140px; background-repeat: no-repeat; background-image: url(../images/signup1.png); color: #3c3c3c; margin: auto; text-align: center; padding-left: 10px; padding-bottom: 0px; padding-right: 10px; padding-top: 10px; height: 45px; display: block; }
+a.joinbutton:hover{ background-repeat: no-repeat; background-image: url(../images/signup1-on.png); display: block; }
+a.pricing-button { display: block; background-repeat: no-repeat; background-image: url(../images/pricing.png); height: 50px; width: 253px; }
+a.pricing-button:hover { background-repeat: no-repeat; background-image: url(../images/pricing-on.png); height: 50px; width: 253px; }
+div#banner-hm{ padding-top: 25px; text-align: center; /* background-image: url(../images/banner-hm-bg.png); */ }
+div#banner-hm .left{ float: left; padding-top: 45px; width: 310px; }
+div#banner-hm .right{ float: right; padding-top: 45px; width: 310px; }
+div#banner-hm-left .span1{font-size:38px;font-weight:bold}
+div#banner-hm-left .span2{color:#000;font-size:36px;font-weight:bold;line-height:38px}
+div#banner-hm-left p{color:#000;font-size:18px;font-weight:bold;line-height:24px;margin-top:-5px}
+#beta{ float: left; width: 30px; text-align: right; color: #178ffe; font-weight: bold; font-size: 14px; }
+.step {line-height: 36px; background: url(/images/lock_48.png) 5px 10px no-repeat;padding-left:65px;height: 36px;padding-top: 25px;color:white;
+font-size:33px;
+font-weight:bold;}
+ul.homelist li{ font-weight: bold; padding-left: 25px; background-position: left 2px; background-repeat: no-repeat; background-image: url(../images/711.png); }
+ul.check li{ font-size: 14px; padding-left: 25px; background-position: left 2px; background-repeat: no-repeat; background-image: url(../images/711.png); }
+img, div, input, h1, h2, li { behavior: url("iepngfix.htc") }
+#love .float { padding-right: 15px; float: left; width: 220px; }
+#love { height: 190px; }
+#love p { font-size: 14px; }
+#love a { padding-left: 5px; padding-bottom: 5px; padding-right: 5px; padding-top: 3px; margin-right: 10px; text-align: center; float: left; width: 90px; display: block; background-color: #3c3c3c; }
+.header-row { background-color: #d2d2d2; }
+#pricing table { background-color: black; width: 100%; }
+#pricing td { border-color: #161616; border-width: 1px; border-style: solid; padding: 15px; }
+#pricing td.highlight { background-color: #178ffe; }
+#pricing table h2 { font-size: 26px; font-weight: bold; margin-bottom: 0px; }
+input { font-size: 18px; padding: 2px; }
+#sign-up h3 { color: #0066cb; margin-bottom: 5px; }
+#login h3 { text-align: center; color: #0066cb; margin-bottom: 5px; }
+#sign-up p.line { border-bottom-color: #d2d2d2; border-bottom-width: 1px; border-bottom-style: solid; }
+#sign-up { background-color: #9b9b9b; }
+#order-button { padding: 6px; font-size: 24px; color: black; background-color: #a2e772; }
+#login-button { text-align: center; padding-left: 6px; padding-bottom: 6px; padding-right: 35px; padding-top: 6px; background-position: right center; background-repeat: no-repeat; background-image: url(../images/lock.png); font-size: 24px; color: black; background-color: #95b3c8; }
+td {padding:10px; color:black; font-size:11pt; text-align:left}
+td.label {text-align:right;font-weight:normal;}
+.stdcontainer {background-color:#FFF; padding:15px;}
+.stdleft {padding:15px; width:600px; float: left;}
+.stdright {padding:15px; width:250px; float: right;background-color:#f7f7f7;}
+.stdcontainer h1 {font-size: 24pt; font-weight:normal; margin:-10px 0 20px 0; color:black;}
+.error {color:red;}
+.stdform { width: 600px;  }
+div#banner-hm h1 { text-align: center; font-style: normal; font-weight: normal; margin-top: 10px; font-size: 28px; }
+div#banner-hm strong { font-weight: normal; font-style: normal; color: white; font-size: 18px; }
+div#banner-hm p { line-height: 16px; font-size: 13px; color: #838383; margin-top: 5px; }
+#departments { margin-bottom: 30px; background-position: left center; background-repeat: no-repeat; background-image: url(../images/user_48.png); padding-left: 60px; }
+#dashboard { background-position: left center; background-repeat: no-repeat; background-image: url(../images/gear_48.png); padding-left: 60px; }
+#email { margin-bottom: 30px; background-position: left center; background-repeat: no-repeat; background-image: url(../images/contact.png); padding-left: 60px; }
+#plus { background-position: left center; background-repeat: no-repeat; background-image: url(../images/tag-green.png); padding-left: 60px; }
+#sidebar { padding-top: 20px; height: 500px; background-position: 22px top; background-repeat: no-repeat; background-image: url(../images/side-back.jpg); float: left; width: 200px; }
+#content { min-height: 650px; width: 725px; float: right; }
+#sidebar a { border-bottom-color: #f5f5f5; border-bottom-style: solid; border-bottom-width: 1px; height: 23px; display: block; width: 165px; padding: 10px; }
+#tour #sidebar a.what { color: white; padding-left: 20px; padding-bottom: 15px; padding-top: 13px; border-width: 0px; height: 25px; background-repeat: no-repeat; background-image: url(../images/side-current.png); display: block; width: 209px; }
+#sidebar a:hover { color: #fb6f00; }
+
+#how #sidebar a.how { color: white; padding-left: 20px; padding-bottom: 15px; padding-top: 13px; border-width: 0px; height: 25px; background-repeat: no-repeat; background-image: url(../images/side-current.png); display: block; width: 209px; }
+#feat #sidebar a.feat { color: white; padding-left: 20px; padding-bottom: 15px; padding-top: 13px; border-width: 0px; height: 25px; background-repeat: no-repeat; background-image: url(../images/side-current.png); display: block; width: 209px; }
+#pricing h2 { margin-top: 5px; font-size: 36px; }
+#tour div#main { padding-bottom: 20px; padding-top: 20px; text-align: center; }
+#help div#main { padding-bottom: 20px; padding-top: 20px; text-align: center; }
+#sub-span { font-size: 26px; }
+#sub-header { font-weight: bold; color: black; font-size:32px; margin-bottom: 10px; margin-top:-15px; letter-spacing:-0.9px; }
+div#mid-bar { background-color: #d4dee7;width:100%;height: 75px; }
+div#mid-bar h1 { font-style: normal; font-weight: normal; color: black; font-size: 25px; }
+div#mid-bar .pricing-button { margin-top: -28px; float: right; }

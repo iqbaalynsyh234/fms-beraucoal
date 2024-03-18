@@ -1,0 +1,2 @@
+<a href="<?php echo base_url();?>assets/images/<?php echo $vimage;?>/car1.png" target="_blank"><img src="<?php echo base_url();?>assets/images/<?php echo $vimage;?>/car1.png" border="0" height="48" width="48"  /></a>
+<img src="<?php echo base_url();?>assets/images/<?php echo $vimage;?>/car4earth.png" border="0"  /> 

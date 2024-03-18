@@ -1,0 +1,525 @@
+@charset "UTF-8";
+/* CSS Document */
+
+html, body	{
+	height:100%
+}
+
+a:link
+{
+	color: blue;
+	text-decoration:none;
+}
+
+a:visited 
+{
+	color: #069;
+	text-decoration:none;
+}
+
+a:hover 
+{
+	color: #f60;
+	text-decoration:underline;
+}
+
+.lite a:link, .lite a:active, .lite a:visited
+{
+	color: #666;
+	text-decoration:none;
+}
+
+.lite a:hover { color: #06f; text-decoration:none; }
+
+
+/* === START === */
+
+
+
+div#container
+{
+	margin-left: auto;
+	margin-right: auto;
+	text-align:left;
+}
+
+div#logo
+{
+	margin: 0px;
+	padding: 0px;
+	height: 40px;
+	background-color:#ffffff;	
+	background-repeat:no-repeat;
+	text-align:right;
+	vertical-align: bottom;
+}
+
+
+/* ========================= */
+/* === MENU: First Level === */
+/* ========================= */
+ 
+#navbg
+{
+	margin: 0px;
+	padding: 0px;
+	background-color:#D5DDF3;
+	font-size: 60%;
+	text-align:right;
+}
+
+#navcontainer
+{
+margin: 2px 0 0 0px;
+padding: 0;
+height: 20px;
+}
+
+#navcontainer ul
+{
+border: 0;
+margin: 0;
+padding: 0;
+list-style-type: none;
+text-align: center;
+}
+
+#navcontainer ul li
+{
+display: block;
+float: left;
+text-align: center;
+padding: 0;
+margin: 0;
+}
+
+#navcontainer ul li a
+{
+background: #DDD;
+width: 100px;
+height: 18px;
+border-top: 1px solid #CCC;
+border-left: 1px solid #CCC;
+border-bottom: 1px solid #CCC;
+border-right: none;
+padding: 0;
+margin: 0 0 10px 0;
+color: #666;
+text-decoration: none;
+display: block;
+text-align: center;
+font: normal 10px/18px "Lucida Grande", "Lucida Sans Unicode", verdana, lucida, sans-serif;
+}
+
+#navcontainer ul li a:hover, #navcontainer li#active a:hover
+{
+color: #FFF;
+background: #78b134;
+}
+
+#navcontainer a:active
+{
+background: #999;
+color: #FFF;
+}
+
+#navcontainer li#active a
+{
+background: #999;
+border: 1px solid #999;
+color: #FFF;
+}
+
+
+
+/* === LOGIN NAME / Active Account === */
+
+#login
+{
+	margin: 0px;
+	padding: 10px;
+	font-size: 60%;
+	text-align:right;
+}
+
+
+
+/* ==================== */
+/* === LEFT Section === */
+/* ==================== */
+
+div#leftnav
+{
+	margin: 20px 0px 0px 10px;
+	padding: 0px;
+	width: 165px;
+	text-align:left;
+	vertical-align:top;
+	float: left;
+	font-size: 70%;
+}
+
+H3 
+{
+	margin: 0px;
+	padding: 0px;
+	color: #000;
+	font-weight:lighter;
+}
+
+/* ================================ */
+/* === MENU: ACTION MENU (LEFT) === */
+/* ================================ */
+
+#actionmenu ul
+{
+	margin-left: 0px;
+	padding-left: 0px;
+	list-style-type: none;
+	font-family: Arial, Helvetica, sans-serif;
+	/* border-top: 1px solid #ddd; */
+}
+
+#actionmenu a
+{
+	display: block;
+	padding: 6px 8px;
+	width: 149px;
+	/* background-color: #efefef;
+	border-bottom: 1px solid #ddd; */
+}
+
+#actionmenu a:link, #actionmenu a:visited
+{
+	color: #666;
+	text-decoration: none;
+}
+
+#actionmenu a#active
+{
+	background-color: #EEE;
+	color: #000;
+	font-weight: bold;
+}
+
+#actionmenu a:hover, #actionmenu a#active:hover
+{
+	background-color: #CF6;
+	color: #360;
+}
+
+
+/* === Optional Menu === */
+
+div#options
+{
+	margin: 30px 0px 25px 0px;
+	padding: 0px 10px;
+	color: #999;
+	text-align:right;
+}
+
+.left { float:left; }
+
+
+
+
+/* ==================== */
+/* === MAIN Section === */
+/* ==================== */
+
+div#main
+{
+	margin: 0px 0px;
+	padding:0px;
+	text-align:left;
+	vertical-align:top;
+	font-size: 80%;
+} 
+
+h2 
+{
+	margin: 0px;
+	padding: 0px;
+	color: #78b134;
+	font-size: 180%;
+	font-weight:lighter;
+}
+
+h3.subtitel
+{
+	font-weight:bold;
+	width: 100%;
+	border-bottom: 1px solid #ccc;
+	margin-bottom: 5px;
+}
+
+div.spaceleft { width: 120px; }
+div.spaceright 
+{ 
+	width: 380px;
+	text-align:right;
+}
+
+td.formleft 
+{ 
+	color: #999;
+	text-align:right;
+	vertical-align:top;
+}
+.formright { padding-left: 10px; }
+
+
+/* === Forms === */
+.formdefault 
+{
+	color: #000;
+	width: 330px;
+	border: 1px solid #999;
+}
+
+.formshort 
+{
+	color: #000;
+	width: 120px;
+	border: 1px solid #999;
+}
+
+.formnumber 
+{
+	color: #000;
+	width: 60px;
+	border: 1px solid #999;
+}
+
+.textareadefault 
+{
+	color: #000;
+	width: 250px;
+	height: 65px;
+	border: 1px solid #999;
+}
+
+
+/* Table List */
+table.tablelist 
+{
+    border-spacing: 0px;
+    border-collapse: collapse;
+	font-size: 95%;
+}
+
+table.tablelist1 
+{
+    border-spacing: 0px;
+    border-collapse: collapse;
+	font-size: 95%;
+}
+
+table.tablelist td 
+{
+	text-align: left;
+	vertical-align:top;
+    padding: 5px 10px;
+    background-color: #fff;
+	border-bottom: 1px solid #ddd;
+	color:#666;
+}
+
+table.tablelist1 td 
+{
+	text-align: left;
+	vertical-align:top;
+    padding: 5px 10px;
+    //background-color: #fff;
+	//border-bottom: 1px solid #ddd;
+	color:#ffffff;
+}
+
+table.tablelist td.center 
+{
+	text-align: center;
+}
+
+table.tablelist tr.odd td 
+{ 
+	//background-color: #D5EFFC;
+	border-bottom: 1px solid #ddd;
+}
+.odd a:link, .odd a:active, .odd a:visited	{
+	color:#0066ff
+}
+.odd a:hover	{
+	color:#ff6600
+}
+
+table.tablelist thead th {
+    background: #CC6600;
+    color: #FFFFFF;
+	padding: 5px 10px;
+	font-weight:bold;
+}
+thead a:link, thead a:active, thead a:visited	{
+	color:#0066ff
+}
+thead a:hover	{
+	color:#ff6600
+}
+
+table.tablelist th.Corner { text-align: left; }
+
+table.tablelist tfoot td 
+{ 
+	text-align:right;
+	background-color: #CC6600;
+	color:#FFFFFF
+}
+
+
+
+
+/* === DEFINITION LIST STYLED 1 === */
+
+dl.def1
+{
+	margin: 2em 0;
+	padding: 0;
+	width: 100%;
+}
+
+.def1 dt
+{
+	position: relative;
+	left: 0;
+	top: 1.1em;
+	width: 10em;
+	font-weight: bold;
+}
+
+.def1 dd
+{
+	border-left: 1px solid #ddd;
+	margin: 0 0 0 10em;
+	padding: 0 0 1em 1em;
+}
+
+
+
+/* ========================= */
+/* === Copyright Section === */
+/* ========================= */
+
+div#copy
+{
+	margin: 20px 0px 20px 0px;
+	padding: 10px 10px;
+	border-top: 1px solid #ddd;
+	border-bottom:1px solid #ddd;
+	font-size: 70%;
+	color: #999;
+	text-align:right;
+}
+
+/*
+.tb_l_t	{border-top:solid #EEEEEE 1px}
+.tb_l_l	{border-left:solid #EEEEEE 1px}
+.tb_l_b	{border-bottom:solid #EEEEEE 1px}
+.tb	{background:#EEEEEE}*/
+.tb_data td	{
+	/*border-bottom:#c8c8c8 dotted 1px;*/
+	padding:5px 10px;
+}/*
+.tb_data tr:hover	{background:#FFFFFF}*/
+.line	{border-collapse:collapse; border:#999999 solid 1px}
+
+/* Table List */
+table.tablepop
+{
+    border-spacing: 0px;
+    border-collapse: collapse;
+	font-size: 11px;
+}
+
+table.tablepop td 
+{
+	text-align: left;
+	vertical-align:top;
+    padding: 5px 10px;
+    background-color: #fff;
+	border-bottom: 1px solid #ddd;
+	color:#666;
+}
+
+table.tablepop td.center 
+{
+	text-align: center;
+}
+
+table.tablepop tr.odd td 
+{ 
+	background-color: #fff;
+	border-bottom: 1px solid #ddd;
+}
+.odd a:link, .odd a:active, .odd a:visited	{
+	color:#0066ff
+}
+.odd a:hover	{
+	color:#ff6600
+}
+
+table.tablepop thead th {
+    background: #def0fa;
+    color: #0066ff;
+	padding: 5px 10px;
+	font-weight:bold;
+}
+
+table.tablepopth.Corner { text-align: left; }
+
+table.tablepop tfoot td 
+{ 
+	text-align:right;
+	background-color: #def0fa;
+	color:#666666
+}
+
+/* Error & warning */
+#errorExplanation, div.flash, .nodata, .warning {
+    padding: 4px 4px 4px 35px;
+    margin-bottom: 12px;
+	font-size: 1.1em;
+	border: 2px solid;
+}
+
+div.flash {margin-top: 8px;}
+
+div.flash.error, #errorExplanation {
+    background: url(../_sys_images/ajax_error.small.gif) 8px 5px no-repeat;
+    background-color: #ffe3e3;
+	border-color: #dd0000;
+	color: #550000;
+}
+
+div.flash.notice {
+    background: url(../_sys_images/ajax_ok.small.gif) 8px 5px no-repeat;
+	background-color: #dfffdf;
+	border-color: #9fcf9f;
+	color: #005f00;
+}
+
+div.flash.warning {
+  background: url(../images/warning.png) 8px 5px no-repeat;
+	background-color: #FFEBC1;
+	border-color: #FDBF3B;
+	color: #A6750C;
+  text-align: left;
+}
+
+.nodata, .warning {
+    text-align: center;
+	background-color: #FFEBC1;
+	border-color: #FDBF3B;
+	color: #A6750C;
+}
+
+#errorExplanation ul { font-size: 0.9em;}

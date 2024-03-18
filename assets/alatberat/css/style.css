@@ -1,0 +1,74 @@
+/*This is a comment*/
+body {
+	background:black;
+	background-image:;
+	background-repeat:no-repeat;
+	background-position:center absolute;
+
+	font-size:
+
+}
+
+.content {
+	width:960px;
+	height:297px;
+	background-color:#010000;
+	background-image:url(../images/head.png);
+	position:center;
+	margin-top:-127px;
+}
+
+.box {
+    float: left;
+    width: 40px;
+    overflow: hidden;
+    margin: 0 0px 0 0;
+	margin-top:0px;
+	margin-left:0px;
+    -webkit-transition: width 1s ease-in;
+    -moz-transition: width 1s ease-in; 
+    -o-transition: width 1s ease-in;   
+}
+ 
+.box:hover {
+    width: 600px;
+	height:297px;
+}
+
+.bgmenu {
+	background-image:url(../images/menu.png);
+	background-repeat:repeat;
+	width:1000px;
+	height:45px;
+}
+
+.bg-foot {
+	background-image:url(../images/foot.png);
+	background-repeat:repeat;
+	width:1000px;
+	height:45px;
+	margin-top:0px;
+}
+  
+.text-foot{
+	font-size:17px;
+	color:#f7ae03;
+	margin-top:0px;
+}
+
+.form {
+	font-size:;
+	color:#f7ae03;
+}
+a{color:#f7ae03}
+a :visited {color:white}
+
+.text-b {
+	font-size:15px;
+	color:black;
+	margin-left:-70px;
+	margin-top:0px;
+}
+.box-b {
+	border:0px solid gray;
+}

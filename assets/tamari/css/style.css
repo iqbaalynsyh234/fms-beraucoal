@@ -1,0 +1,108 @@
+body {
+	background:#00A859;
+	background-image:url(../image/back.jpg);
+	background-repeat:no-repeat;
+	background-position:center;
+	}
+
+
+#wrapper {
+	background-image:url(../image/back-wrap.png);
+	background-repeat:repeat-x;
+	margin-top:0px;
+}
+	
+.head1 {
+	margin-top:-8px;
+	padding:30px;
+	background-position:center;
+}
+
+#content {
+	background-image:url(.../image/bgcontent.png);
+	Background-color:;
+	background-position:center;
+	margin-top:0px;
+}
+
+.form {
+	width:100px;
+	color:white;
+}
+
+#footer {
+	background-color:#00A859;
+	background-image:url(.../image/foot.png);
+	width:960px;
+	margin-top:10px;
+	
+	
+}
+
+.text-foot {
+	font-size:15px;
+	color:white;
+}
+.menu
+{
+float: left;
+height:32px;
+width:160px;
+overflow: hidden;
+margin: 0 -60px 0 0;
+transition:width 2s, height 2s;
+-moz-transition:width 2s, height 2s, -moz-transform 2s; /* Firefox 4 */
+-webkit-transition:width 2s, height 2s, -webkit-transform 2s; /* Safari and Chrome */
+-o-transition:width 2s, height 2s, -o-transform 2s; /* Opera */
+}
+.menu:hover
+{
+width:600px;
+height:160px;
+transform:rotate(0deg);
+-moz-transform:rotate(0deg); /* Firefox 4 */
+-webkit-transform:rotate(0deg); /* Safari and Chrome */
+-o-transform:rotate(0deg); /* Opera */
+}
+.menu2
+{
+float: left;
+height:32px;
+width:244px;
+overflow: hidden;
+margin: 0 -60px 0 0;
+transition:width 2s, height 2s;
+-moz-transition:width 2s, height 2s, -moz-transform 2s; /* Firefox 4 */
+-webkit-transition:width 2s, height 2s, -webkit-transform 2s; /* Safari and Chrome */
+-o-transition:width 2s, height 2s, -o-transform 2s; /* Opera */
+}
+.menu2:hover
+{
+width:575px;
+height:230px;
+transform:rotate(0deg);
+-moz-transform:rotate(0deg); /* Firefox 4 */
+-webkit-transform:rotate(0deg); /* Safari and Chrome */
+-o-transform:rotate(0deg); /* Opera */
+}
+.menu3
+{
+float: left;
+height:32px;
+width:159px;
+overflow: hidden;
+margin: 0 0px 0 0;
+transition:width 2s, height 2s;
+-moz-transition:width 2s, height 2s, -moz-transform 2s; /* Firefox 4 */
+-webkit-transition:width 2s, height 2s, -webkit-transform 2s; /* Safari and Chrome */
+-o-transition:width 2s, height 2s, -o-transform 2s; /* Opera */
+}
+.menu3:hover
+{
+width:597px;
+height:217px;
+transform:rotate(0deg);
+-moz-transform:rotate(0deg); /* Firefox 4 */
+-webkit-transform:rotate(0deg); /* Safari and Chrome */
+-o-transform:rotate(0deg); /* Opera */
+}

@@ -1,0 +1,866 @@
+<?php
+include "base.php";
+
+class Map extends Base {
+
+	function Map()
+	{
+		parent::Base();	
+		$this->load->model("gpsmodel");
+		$this->load->model("vehiclemodel");
+		$this->load->model("smsmodel");
+	}
+	
+	function history($name, $host, $gpsid)
+	{
+		if (! $this->sess)
+		{
+			redirect(base_url());
+		}
+
+		$this->db->where("vehicle_status <>", 3);
+		$this->db->where("vehicle_device", $name.'@'.$host);
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			redirect(base_url());
+		}
+
+		$row = $q->row();
+		
+		$this->params["gpsid"] = $gpsid;
+		$this->params["zoom"] = $this->config->item("zoom_history");
+		$this->params["data"] = $row;
+		$this->params["ishistory"] = "on";
+		$this->params["initmap"] = $this->load->view('initmap', $this->params, true);		
+		$this->params["updateinfo"] =  $this->load->view('updateinfohistory', $this->params, true);
+		$this->params["content"] = $this->load->view('map/realtime', $this->params, true);
+		$this->load->view("templatesess", $this->params);	
+
+	}
+	
+	function realtime($name, $host="")
+	{
+		if (! $this->sess)
+		{
+			redirect(base_url());
+		}
+		
+		if ($this->sess->user_type == 2)
+		{
+			$vehicleids = $this->vehiclemodel->getVehicleIds();
+		}	
+	
+		$this->db->where("vehicle_status <>", 3);
+		$this->db->where("vehicle_device", $name.'@'.$host);
+		if ($this->sess->user_type == 2)
+		{	
+			// security, make sure bahwa yang dibuka benar kendaraan punyanya
+
+			if ($this->sess->user_company)
+			{
+				$this->db->where_in("vehicle_id", $vehicleids);
+			}
+			else
+			{
+				$this->db->where("vehicle_user_id", $this->sess->user_id);
+			}
+
+			$this->db->where("vehicle_active_date2 >=", date("Ymd"));
+		}
+		else
+		if ($this->sess->user_type == 3)
+		{
+			$this->db->where("user_agent", $this->sess->user_agent);
+			$this->db->join("user", "vehicle_user_id = user_id");
+		}
+
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			redirect(base_url());
+		}
+		
+		$row = $q->row();
+		
+		$this->params['title'] = $this->lang->line('ltracker').' '.$row->vehicle_name.'-'.$row->vehicle_no.' ';
+		$this->params["ishistory"] = "off";		
+		$this->params["zoom"] = $this->config->item("zoom_realtime");
+		$this->params["data"] = $row;
+		$this->params["initmap"] = $this->load->view('initmap', $this->params, true);
+		$this->params["updateinfo"] = $this->load->view('updateinfo', $this->params, true);
+		$this->params["content"] = $this->load->view('map/realtime', $this->params, true);
+		$this->load->view("templatesess", $this->params);	
+	}
+	
+	function lastinfo()
+	{
+		if (isset($_POST['session']))
+		{
+                        $this->db->where("session_id", $_POST['session']);
+                        $this->db->join("user", "user_id = session_user");
+                        $q = $this->db->get("session");
+
+                        if ($q->num_rows() == 0) return;
+
+                        $this->sess = $q->row();
+		}
+
+		if (! $this->sess)
+		{
+			echo json_encode(array("info"=>"", "vehicle"=>""));
+			return;
+		}
+		
+		$device = isset($_POST['device']) ? $_POST['device'] : "";
+		$lasttime = isset($_POST['lasttime']) ? $_POST['lasttime'] : 0;
+	
+		if ($this->sess->user_type == 2)
+		{
+			$vehicleids = $this->vehiclemodel->getVehicleIds();
+		}	
+			
+		switch($this->sess->user_type)
+		{
+			case 2:
+				if ($this->sess->user_company)
+				{
+					$this->db->where_in("vehicle_id", $vehicleids);
+				}
+				else
+				{
+					$this->db->where("vehicle_user_id", $this->sess->user_id);
+				}
+			break;
+			case 3:
+				$this->db->where("user_agent", $this->sess->user_agent);
+			break;			
+		}
+				
+		$this->db->where("vehicle_status <>", 3);
+		$this->db->where("vehicle_device", $device);		
+		$this->db->join("user", "vehicle_user_id = user_id");
+		$this->db->join("bank", "user_agent = bank_agent", "left outer");
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			echo json_encode(array("info"=>"", "vehicle"=>""));
+			return;
+		}
+				
+		$row = $q->row();
+		
+		// cek expire 
+		
+		if ($row->vehicle_active_date2 && ($row->vehicle_active_date2 < date("Ymd")))
+		{
+			$row->vehicle_active_date2_fmt = inttodate($row->vehicle_active_date2);
+			
+			echo json_encode(array("info"=>"expired", "vehicle"=>$row));
+			return;
+		}
+		
+		$arr = explode("@", $device);
+
+		$devices[0] = (count($arr) > 0) ? $arr[0] : "";
+		$devices[1] = (count($arr) > 1) ? $arr[1] : "";
+		
+		$gtps = $this->config->item("vehicle_gtp");		
+		
+		if (! in_array(strtoupper($row->vehicle_type), $gtps))
+		{
+			$row->status = "-";
+
+			$taktif = dbintmaketime($row->vehicle_active_date, 0);
+			
+			$json = json_decode($row->vehicle_info);
+			if (isset($json->sisapulsa))
+			{
+				if (strlen($json->masaaktif) == 6)
+				{
+					$taktif = dbintmaketime1($json->masaaktif, 0);
+				}
+				else
+				{
+					$taktif = dbintmaketime2($json->masaaktif, 0);
+				}
+
+				$row->pulse = sprintf("Rp %s", number_format($json->sisapulsa, 0, "", "."));
+				$row->masaaktif = date("d/m/Y", $taktif);
+			}
+			else
+			{			
+				$row->pulse = false;
+			}
+
+		}
+		else
+		{		
+			// ambil informasi di gps_info
+			
+			$this->db->order_by("gps_info_time", "DESC");
+			$this->db->where("gps_info_device", $device);
+			$q = $this->db->get($this->gpsmodel->getGPSInfoTable($row->vehicle_type), 1, 0);
+			
+			if ($q->num_rows() == 0)
+			{
+				$row->status = "-";
+				$row->status1 = false;
+				$row->status2 = false;
+				$row->status3 = false;
+				$row->pulse = "-";
+			}
+			else
+			{
+				$rowinfo = $q->row();												
+				
+				$ioport = $rowinfo->gps_info_io_port;
+				
+				$row->status3 = ((strlen($ioport) > 1) && ($ioport[1] == 1)); // opened/closed
+				$row->status2 = ((strlen($ioport) > 3) && ($ioport[3] == 1)); // release/hold
+				$row->status1 = ((strlen($ioport) > 4) && ($ioport[4] == 1)); // on/off
+				$row->status = $row->status2 || $row->status1 || $row->status3;
+				
+				$pulses = $this->config->item("vehicle_pulse");
+				if (! in_array(strtoupper($row->vehicle_type), $pulses))
+				{
+					$json = json_decode($row->vehicle_info);
+					if (isset($json->sisapulsa))
+					{
+						if (strlen($json->masaaktif) == 6)
+						{
+							$taktif = dbintmaketime1($json->masaaktif, 0);
+						}
+						else
+						{
+							$taktif = dbintmaketime2($json->masaaktif, 0);
+						}
+
+						$row->pulse = sprintf("Rp %s", number_format($json->sisapulsa, 0, "", "."));
+						$row->masaaktif = date("d/m/Y", $taktif);
+					}
+					else
+					{			
+						$row->pulse = false;
+					}
+				}
+				else
+				{				
+					//$rowinfo->gps_info_ad_input = "00B0742177";
+					
+					$pulsa = number_format(hexdec(substr($rowinfo->gps_info_ad_input, 0, 5)), 0, "", ".");					
+					$aktif = hexdec(substr($rowinfo->gps_info_ad_input, 5));
+					
+					$taktif = dbintmaketime1($aktif, 0);
+										
+					$row->pulse = sprintf("Rp %s", $pulsa);
+					$row->masaaktif = date("d/m/Y", $taktif);
+				}
+
+				$fuels = $this->config->item("vehicle_fuel");
+				if (! in_array(strtoupper($row->vehicle_type), $fuels))
+				{
+					$row->fuel = false;
+				}
+				else
+				{				
+					$row->fuel = "-";
+					if($rowinfo->gps_info_ad_input != ""){
+						if($rowinfo->gps_info_ad_input != 'FFFFFF' || $rowinfo->gps_info_ad_input != '999999' || $rowinfo->gps_info_ad_input != 'YYYYYY'){
+							$fuel_1 = hexdec(substr($rowinfo->gps_info_ad_input, 0, 4));
+							$fuel_2 = (hexdec(substr($rowinfo->gps_info_ad_input, 0, 2))) * 0.1;
+														
+							$fuel = $fuel_1 + $fuel_2;
+							
+							$sql = "SELECT * FROM ( 
+										(
+											SELECT *
+											FROM `webtracking_fuel`
+											WHERE `fuel_tank_capacity` = ". $row->vehicle_fuel_capacity ."
+											AND `fuel_led_resistance` >= ". $fuel ." 
+											ORDER BY fuel_led_resistance ASC 
+											LIMIT 1
+										) UNION (
+											SELECT *
+											FROM `webtracking_fuel`
+											WHERE `fuel_tank_capacity` = ". $row->vehicle_fuel_capacity ."
+											AND `fuel_led_resistance` <= ". $fuel ." 
+											ORDER BY fuel_led_resistance DESC 
+											LIMIT 1
+										) 
+									) tbldummy";
+							
+							$qfuel = $this->db->query($sql);
+							if ($qfuel->num_rows() > 0){
+   								$rfuel = $qfuel->result();
+								
+								if ($qfuel->num_rows() == 1){
+									$row->blink = false;
+									$row->fuel_scale = $rfuel[0]->fuel_gas_scale * 10;
+									$row->fuel = $rfuel[0]->fuel_volume . "L";
+								}else{
+									$row->blink = true;
+									$row->fuel_scale = $rfuel[1]->fuel_gas_scale * 10;
+									$row->fuel = $rfuel[0]->fuel_volume . "L - " . $rfuel[1]->fuel_volume . "L";
+								}
+							}
+							
+							
+						}
+					}
+					
+				}
+				$row->totalodometer = round(($rowinfo->gps_info_distance+$row->vehicle_odometer*1000)/1000);
+				//$row->totalodometer = str_split($strodometer);
+			}
+						
+		}
+		
+		$t = dbintmaketime($row->vehicle_active_date1, 0);
+		$row->vehicle_active_date1_fmt = date("M, jS Y", $t);
+
+		$t = dbintmaketime($row->vehicle_active_date2, 0);
+		$row->vehicle_active_date2_fmt = date("M, jS Y", $t);
+		
+		$arr = explode("@", $device);
+
+		$devices[0] = (count($arr) > 0) ? $arr[0] : "";
+		$devices[1] = (count($arr) > 1) ? $arr[1] : "";
+		
+		
+		$row->vehicle_device_name = $devices[0];
+		$row->vehicle_device_host = $devices[1];
+		
+		$params["vehicle"] = $row;
+		$row->gps = $this->gpsmodel->GetLastInfo($devices[0], $devices[1], true, false, $lasttime, $row->vehicle_type);
+
+		if (! $row->gps)
+		{
+			echo json_encode(array("info"=>"", "vehicle"=>$row));
+			return;
+		}
+				
+		$delayresatrt = mktime() - $row->gps->gps_timestamp;
+		$kdelayrestart = $this->config->item("restart_delay")*60;
+		
+		if (true)
+		{
+			$restart = $this->smsmodel->restart($row->vehicle_type, $row->vehicle_operator);
+			$row->restartcommand = $restart;					
+		}
+		else
+		{
+			$row->restartcommand = "";
+		}
+		
+		if (in_array(strtoupper($row->vehicle_type), $this->config->item("vehicle_T1")))
+		{
+			$row->checkpulsa = $this->smsmodel->checkpulse($row->vehicle_operator);
+		}
+		else
+		{
+			$row->checkpulsa = "";
+		}
+		
+		
+		//get geofence location
+		$row->geofence_location = $this->getGeofence_location($row->gps->gps_longitude, $row->gps->gps_ew, $row->gps->gps_latitude, $row->gps->gps_ns, $row->vehicle_device);   
+        //print_r($row->vehicle_device);
+        //$params["geofence_location"] = $row->geofence_location; 
+		$params["devices"] = $devices;
+		$params["data"] = $row->gps;
+		$info = $this->load->view("map/info", $params, TRUE);				
+		
+		echo json_encode(array("info"=>$info, "vehicle"=>$row));				
+	}
+
+	function historyinfo()
+	{
+		$device = isset($_POST['device']) ? $_POST['device'] : "";		
+		$gpsid = isset($_POST['gpsid']) ? $_POST['gpsid'] : 0;		
+
+		if ($this->sess->user_type == 2)
+		{
+			$vehicleids = $this->vehiclemodel->getVehicleIds();
+		}	
+			
+		switch($this->sess->user_type)
+		{
+			case 2:
+				if ($this->sess->user_company)
+				{
+					$this->db->where_in("vehicle_id", $vehicleids);
+				}
+				else
+				{
+					$this->db->where("vehicle_user_id", $this->sess->user_id);
+				}
+			break;
+			case 3:
+				$this->db->where("user_agent", $this->sess->user_agent);
+			break;			
+		}
+	
+		$this->db->where("vehicle_status <>", 3);
+		$this->db->where("vehicle_device", $device);		
+		$this->db->join("user", "vehicle_user_id = user_id");
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			redirect(base_url());
+			return;
+		}
+				
+		$row = $q->row();
+		
+		$t = dbintmaketime($row->vehicle_active_date1, 0);
+		$row->vehicle_active_date1_fmt = date("M, jS Y", $t);
+
+		$t = dbintmaketime($row->vehicle_active_date2, 0);
+		$row->vehicle_active_date2_fmt = date("M, jS Y", $t);		
+
+		$this->db->where("gps_id", $gpsid);
+		$q = $this->db->get($this->gpsmodel->getGPSTable($row->vehicle_type));
+		
+		if ($q->num_rows() == 0)
+		{
+			$tblhists = $this->config->item("table_hist");
+			$tblhist = $tblhists[strtoupper($row->vehicle_type)];			
+			
+			$this->db->where("gps_id", $gpsid);
+			$q = $this->db->get($tblhist);
+		}
+		
+		$row1 = $q->row();		
+		
+		$arr = explode("@", $device);
+
+		$gtps = $this->config->item("vehicle_gtp");
+		
+		if (! in_array(strtoupper($row->vehicle_type), $gtps))
+		{
+			$row1->status = "-";
+		}
+		else
+		{		
+			// ambil informasi di gps_info
+			
+			$this->db->order_by("gps_info_time", "DESC");
+			$this->db->where("gps_info_device", $device);
+			$q = $this->db->get($this->gpsmodel->getGPSInfoTable($row->vehicle_type), 1, 0);
+			if ($q->num_rows() == 0)
+			{
+				$row->status = "-";
+				$row->status1 = false;
+				$row->status2 = false;
+				$row->status3 = false;
+			}
+			else
+			{
+				$rowinfo = $q->row();												
+				
+				$ioport = $rowinfo->gps_info_io_port;
+				
+				$row->status3 = ((strlen($ioport) > 1) && ($ioport[1] == 1)); // opened/closed
+				$row->status2 = ((strlen($ioport) > 3) && ($ioport[3] == 1));
+				$row->status1 = ((strlen($ioport) > 4) && ($ioport[4] == 1));
+				$row->status = $row->status2 || $row->status1 || $row->status3;
+			}
+		}
+		
+
+		$devices[0] = (count($arr) > 0) ? $arr[0] : "";
+		$devices[1] = (count($arr) > 1) ? $arr[1] : "";		
+		
+		$row->gps = $this->gpsmodel->GetLastInfo("", "", true, $row1, 0, $row->vehicle_type);
+		$params["devices"] = $devices;
+		$params["vehicle"] = $row;
+		$params["data"] = $row->gps;
+		$info = $this->load->view("map/info", $params, TRUE);				
+		
+		echo json_encode(array("info"=>$info, "vehicle"=>$row));		
+	}
+	
+	function kmllastcoord($lng, $lat, $id, $car, $history, $delay=-1, $nscale=-1, $hscale=-1)
+	{			
+
+		$this->db->where("vehicle_id", $id);
+		$q = $this->db->get("vehicle");
+		
+		$row = $q->row();		
+		
+		$images = array_keys($this->config->item('vehicle_image'));
+		$vimage = $row->vehicle_image ? $row->vehicle_image : $images[0];
+		
+		if ($history == "on")
+		{
+			$params["car"] = base_url().'assets/images/'.$vimage.'/car_front.png';
+			$params["nscale"] = ($nscale != -1) ? $nscale : 0.75;
+			$params["hscale"] = ($hscale != -1) ? $hscale : 1.25;
+		}
+		else
+		if ($history == "on1")
+		{
+			switch($delay)
+			{
+				case 0:
+					$params["car"] = base_url().'assets/images/'.$vimage.'/car4earth-red.png';
+				break;
+				case 1:
+					$params["car"] = base_url().'assets/images/'.$vimage.'/car4earth-yellow.png';
+				break;				
+				default:
+					$params["car"] = base_url().'assets/images/'.$vimage.'/car_front.png';
+			}
+
+			$params["nscale"] = ($nscale != -1) ? $nscale : 0.5;
+			$params["hscale"] = ($hscale != -1) ? $hscale : 1;
+		}		
+		else
+		{		
+			if ($car == 0)
+			{
+				$params["car"] = base_url().'assets/images/'.$vimage.'/car1.png';
+			}
+			else
+			{
+				$params["car"] = base_url().'assets/images/'.$vimage.'/car'.$car.'.gif';
+			}
+
+			$params["nscale"] = ($nscale != -1) ? $nscale : 1.5;
+			$params["hscale"] = ($hscale != -1) ? $hscale : 2;
+		}
+		$params["lng"] = $lng;
+		$params["lat"] = $lat;		
+		$params["vehicle"]  = $row;
+		
+		//header("Content-type: application/vnd.google-earth.kml+xml");
+		$this->load->view('map/kmllastcoord', $params);
+	}
+	
+	function historyfull()
+	{
+		if (! $this->sess)
+		{
+			redirect(base_url());
+		}
+		
+		parse_str($_SERVER['QUERY_STRING'], $_GET);
+
+		if (isset($_GET['sessionid']))
+		{
+			$this->db->where("log_type", "mapparams".$_GET['sessionid']);
+			$q = $this->db->get("log");
+			
+			if ($q->num_rows())
+			{
+				$rowlog = $q->row();
+				
+				$sess = json_decode($rowlog->log_data);
+				for($i=0; $i < count($sess); $i++)
+				{
+					$_GET['lnglat'][] = sprintf("%s,%s", $sess[$i][0], $sess[$i][1]);
+				}
+			}			
+		}
+
+		$this->db->where("vehicle_id", $_GET['vehicle']);
+		$q = $this->db->get("vehicle");		
+		
+		$row = $q->row();
+		$this->params['row'] = $row;
+		
+		$this->params["initmap"] = $this->load->view('initmap', $this->params, true);		
+		$this->params["content"] = $this->load->view('map/history', $this->params, true);
+		$this->load->view("templatesess", $this->params);	
+	}
+	
+	function poi()
+	{
+		header("Content-type: text/plain");
+		echo "lat\tlon\ttitle\tdescription\ticonSize\ticonOffset\ticon\r\n";
+		
+		parse_str($_SERVER['QUERY_STRING'], $_GET);
+
+		$bbox = $_GET['bbox'];
+		list($west, $south, $east, $north) = explode(",", $bbox);
+
+		$this->db->join("poi_category", "poi_cat_id = poi_category", "left outer join");
+		$q = $this->db->get("poi");
+		
+		$rows = $q->result();
+						
+		for($i=0; $i < count($rows); $i++)
+		{
+			
+			$lat = $rows[$i]->poi_latitude;
+			$lng = $rows[$i]->poi_longitude;
+						
+			if ($lng < $west) continue;			
+			if ($lat < $south) continue;
+						
+			if ($lng > $east) continue;
+			if ($lat > $north) continue;
+			
+			if ($rows[$i]->poi_cat_icon)
+			{
+				$rows[$i]->poi_cat_icon = base_url().'assets/images/poi/'.$rows[$i]->poi_cat_icon;	
+				$rows[$i]->poi_cat_icon_size = "16,16";
+				$rows[$i]->poi_cat_icon_offset = "0,-16";
+			}
+			else
+			{
+				$rows[$i]->poi_cat_icon = "";
+				$rows[$i]->poi_cat_icon_size = "";
+				$rows[$i]->poi_cat_icon_offset = "";				
+			}
+			
+			printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\r\n", $lat, $lng, $rows[$i]->poi_name, $rows[$i]->poi_name, $rows[$i]->poi_cat_icon_size, $rows[$i]->poi_cat_icon_offset, $rows[$i]->poi_cat_icon);
+			//printf("%s,%s\t%s\t%s\t%s\r\n", $rows[$i]->poi_latitude, $rows[$i]->poi_longitude, $rows[$i]->poi_name, $rows[$i]->poi_name, $rows[$i]->poi_cat_icon);
+			
+		}
+		
+		$streeticon_png =  base_url().'assets/images/poi/'."highway.png";
+		$streeticon_size = "16,16";
+		$streeticon_offset = "0,-16";
+				
+		$q = $this->db->get("street");		
+		$rows = $q->result();
+						
+		for($i=0; $i < count($rows); $i++)
+		{
+			$data = json_decode($rows[$i]->street_serialize);
+			$geometry = $data->geometry->coordinates;		
+			$polygon = $geometry[0];
+
+			printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\r\n", $polygon[0][1], $polygon[0][0], $rows[$i]->street_name, $rows[$i]->street_name, $streeticon_size, $streeticon_offset, $streeticon_png);			
+		}
+
+		$cctv_png = base_url().'assets/images/poi/'."cctv.png";
+		$cctv_size = "32,32";
+		$cctv_offset = "0,-32";
+
+		$this->db->where("cctv_status", 1);
+		$q = $this->db->get("cctv");		
+		$rows = $q->result();
+						
+		for($i=0; $i < count($rows); $i++)
+		{
+			printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\r\n", $rows[$i]->cctv_lat, $rows[$i]->cctv_lon, "cctv__".$rows[$i]->cctv_id, "cctv__".$rows[$i]->cctv_id, $cctv_size, $cctv_offset, $cctv_png);			
+		}
+	}	
+
+	function googleearthservice($session, $vname, $vhost)
+	{
+		$this->db->where("session_id", $session);
+		$this->db->join("user", "user_id = session_user");
+		$q = $this->db->get("session");
+
+		if ($q->num_rows() == 0) return;
+
+		$row = $q->row();
+
+		$this->googleearth($row->user_login, substr($row->user_pass, 1), $vname, $vhost);
+	}
+	
+	function googleearth($user, $pass, $vname, $vhost)
+	{		
+		$this->db->where("user_login", $user);
+		$this->db->where("user_pass", '*'.$pass);
+		$q = $this->db->get("user");
+		
+		if ($q->num_rows() == 0)
+		{
+			return;
+		}
+
+		$row = $q->row();
+		
+		switch ($row->user_type)
+		{
+			case 2:
+				$this->db->where("user_id", $row->user_id);
+			break;
+			case 3:
+				$this->db->where("user_agent", $row->user_agent);
+			break;
+		}
+
+		$this->db->where("vehicle_device", $vname."@".$vhost);	
+		$this->db->join("user", "vehicle_user_id = user_id");
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			return;
+		}
+
+		$row = $q->row();				
+		
+		$t = dbintmaketime($row->vehicle_active_date1, 0);
+		$row->vehicle_active_date1_fmt = date("M, jS Y", $t);
+
+		$t = dbintmaketime($row->vehicle_active_date2, 0);
+		$row->vehicle_active_date2_fmt = date("M, jS Y", $t);
+				
+		$row->gps = $this->gpsmodel->GetLastInfo($vname, $vhost, true, false, 0, $row->vehicle_type);
+		$this->params['info'] = $row;		
+		
+		// get all position
+
+		$this->db->order_by("gps_time", "desc");
+		$this->db->select("gps_latitude, gps_ns, gps_longitude, gps_ew");
+		$this->db->where("gps_name", $vname);	
+		$this->db->where("gps_host", $vhost);	
+		$q = $this->db->get($this->gpsmodel->getGPSTable($row->vehicle_type));
+		$rows = $q->result();
+		
+		$this->params['infoall'] = $rows;
+		
+		header("Content-type: application/vnd.google-earth.kmz");
+		$this->load->view("map/googleearth", $this->params);
+	}
+	
+	function georeverse($lat, $lng)
+	{
+		$urls = $this->config->item("google_georeverse_api");
+		$url = sprintf($urls[$this->config->item("google_georeverse_active")], $lat, $lng);
+		
+		$lokasi = $this->gpsmodel->GeoReverseServiceA($url);				
+		if (isset($lokasi->results) && count($lokasi->results) > 0)
+		{			
+			//echo "google ".$lokasi->results[0]->formatted_address;		
+			echo $lokasi->results[0]->formatted_address;
+			return;
+		}
+
+		$lokasi = $this->gpsmodel->GeoReverseServiceA("http://nominatim.openstreetmap.org/reverse?format=json&lat=".$lat."&lon=".$lng);		
+		if (! isset($lokasi->display_name)) 
+		{
+			echo "Unknown address";
+			return;
+		}
+		
+		echo $lokasi->display_name;	
+		return;
+	}
+	
+	function gpx($sessionid="")
+	{
+		parse_str($_SERVER['QUERY_STRING'], $_GET);
+		
+		if ($sessionid)
+		{			
+			$this->db->where("log_type", "mapparams".$sessionid);
+			$q = $this->db->get("log");
+
+			if ($q->num_rows())
+			{
+				$rowlog = $q->row();
+				
+				$sess = json_decode($rowlog->log_data);
+				for($i=0; $i < count($sess); $i++)
+				{
+					$this->params['lon'][] = $sess[$i][0];
+					$this->params['lat'][] = $sess[$i][1];
+				}
+			}
+		}
+		else
+		{
+			$this->params['lon'] = $_GET['lon'];
+			$this->params['lat'] = $_GET['lat'];
+		}			
+		
+		$this->load->view("map/gpx", $this->params);
+	}
+	
+	function geocode()
+	{
+		$text = isset($_POST['lokasi']) ? trim($_POST['lokasi']) : "";
+		
+		if (strlen($text) == 0)
+		{
+			unset($json);
+			
+			$json['error'] = true;
+			$json['message'] = $this->lang->line("lempty_location");
+			
+			echo json_encode($json);			
+			return;
+		}
+
+		$data = sprintf("address=%s&sensor=true", urlencode($text));
+		$url = "https://maps.googleapis.com/maps/api/geocode/json"."?".$data;
+				
+		$result = $this->gpsmodel->GeoReverseServiceA($url);
+		
+		if (! isset($result->results[0]->geometry->location->lat))
+		{
+			unset($json);
+			
+			$json['error'] = true;
+			$json['message'] = $this->lang->line("lerr_location");
+			
+			echo json_encode($json);			
+			return;
+		}
+
+		if (! isset($result->results[0]->geometry->location->lng))
+		{
+			unset($json);
+			
+			$json['error'] = true;
+			$json['message'] = $this->lang->line("lerr_location");
+			
+			echo json_encode($json);			
+			return;
+		}
+		
+		$json['error'] = false;
+		$json['lat'] = $result->results[0]->geometry->location->lat;
+		$json['lng'] = $result->results[0]->geometry->location->lng;
+		
+		echo json_encode($json);		
+	}
+	
+	function getGeofence_location($longitude, $ew, $latitude, $ns, $vehicle_device) {
+		$lng = getLongitude($longitude, $ew);
+		$lat = getLatitude($latitude, $ns);
+        $geo_name = "''";
+
+		$sql = sprintf("
+					SELECT 	*
+					FROM 	%sgeofence 
+					WHERE 	TRUE
+                            AND (geofence_name <> %s)
+							AND CONTAINS(geofence_polygon, GEOMFROMTEXT('POINT(%s %s)'))
+                            AND (geofence_vehicle = '%s' ) 
+                            AND (geofence_status = 1)
+					LIMIT 1 OFFSET 0", $this->db->dbprefix, $geo_name, $lng, $lat, $vehicle_device);
+        //print_r($sql);
+		$q = $this->db->query($sql);
+
+		if ($q->num_rows() > 0)
+		{			
+			$row = $q->row();
+		
+            $data = $row->geofence_name;
+			
+            return $data;
+            
+            
+		}else
+        {
+            return false;
+        }
+
+	}
+}
+
+/* End of file welcome.php */
+/* Location: ./system/application/controllers/welcome.php */

@@ -1,0 +1,4125 @@
+<?php
+include "base.php";
+
+class Trackers extends Base {
+	var $period1;
+	var $period2;
+	var $tblhist;
+	var $tblinfohist;
+
+	function Trackers()
+	{
+		parent::Base();	
+		
+		$this->load->model("gpsmodel");
+		$this->load->model("vehiclemodel");
+		$this->load->model("configmodel");		
+	}
+	
+	function index()
+	{
+		
+		$field = isset($_POST['field']) ? $_POST['field'] : "";
+		$keyword = isset($_POST['keyword']) ? $_POST['keyword'] : "";
+		$vtype = isset($_POST['vehicle_type']) ? $_POST['vehicle_type'] : "";
+		$sortby = isset($_POST['sortby']) ? $_POST['sortby'] : "user_name";
+		$orderby = isset($_POST['orderby']) ? $_POST['orderby'] : "asc";
+		$companyid = isset($_POST['company']) ? $_POST['company'] : 0;
+		$groupid = isset($_POST['group']) ? $_POST['group'] : 0;
+		$server = isset($_POST['server']) ? $_POST['server'] : "";
+		
+		if (! isset($this->sess->user_type))
+		{
+			redirect(base_url());
+		}
+
+		if (substr($field, 0, strlen("delayed")) == "delayed")
+		{
+			$delayed = substr($field, strlen("delayed"));
+			$delayeds = explode("_", $delayed);
+			$field = "delayed";
+
+			$vdelayeds = $this->getVehiclesDelayed($delayeds[0]*60, $delayeds[1]*60);
+		}
+		
+		if ($field == "user_company")
+		{
+			if ($groupid)
+			{
+				$groups[] = $groupid;
+				$groupids = $this->vehiclemodel->getChildIds($groupid, &$groups);
+			}
+		}
+
+		if (($this->sess->user_type != 2) || (($this->sess->user_type == 2) && ($this->sess->user_company > 0) && ($this->sess->user_group == 0)))
+		{		
+			$this->db->order_by("company_name", "asc");
+			if ($this->sess->user_type == 3)
+			{
+				$this->db->where("company_agent", $this->sess->user_agent);
+			}
+			
+			$q = $this->db->get("company");				
+			$this->params['companies'] = $q->result();
+		}
+
+		switch($this->sess->user_type)
+		{
+			case 2:
+				if (isset($this->vehicleids))
+				{
+					$this->db->where_in("vehicle_id", $this->vehicleids);
+				}
+				else
+				{
+					$this->db->where("vehicle_user_id", $this->sess->user_id);
+				}
+			break;
+			case 3:
+				$this->db->where("user_agent", $this->sess->user_agent);
+			break;			
+		}
+		
+		if ($sortby == "user_name")
+		{
+			$this->db->order_by($sortby, $orderby);
+			$this->db->order_by("vehicle_name", "asc");
+			$this->db->order_by("vehicle_no", "asc");
+		}
+		else
+		if ($sortby == "vehicle_name")
+		{
+			$this->db->order_by("vehicle_name", $orderby);
+			$this->db->order_by("vehicle_no", $orderby);			
+			$this->db->order_by("user_name", $orderby);
+		}
+		else
+		{
+			$this->db->order_by($sortby, $orderby);
+		}
+		
+		if ($this->sess->user_type == 2)
+		{
+			//$this->db->where("vehicle_active_date2 >=", date("Ymd"));
+		}
+		
+		switch ($field)
+		{
+			case "user_company":
+				if ($groupid)
+				{
+					$this->db->where_in("vehicle_group", $groups);
+				}
+				else
+				{
+					$this->db->where("vehicle_company", $companyid);
+				}
+			break;
+			case "user_agent":
+				$this->db->where("agent_name LIKE '%".$keyword."%'", null);				
+			break;
+			case "vexpired":
+				$this->db->where("vehicle_active_date2 <", date("Ymd"));
+			break;
+			case "vactive":
+				$this->db->where("vehicle_active_date2 >=", date("Ymd"));
+			break;			
+			case "vehicle":
+				$this->db->where("(UPPER(vehicle_no) LIKE '%".strtoupper($keyword)."%' OR UPPER(vehicle_name) LIKE '%".strtoupper($keyword)."%')", null);			
+			break;			
+			case "device":
+				$this->db->where("vehicle_device like", '%'.$keyword.'%');
+			break;	
+			case "delayed":
+				$this->db->where_in("vehicle_id", $vdelayeds);
+			break;		
+			case "server":
+				$this->db->where("vehicle_info LIKE '%\"vehicle_ip\":\"".$server."\"%'", null);
+			break;
+			case "vehicle_type":
+				$vtypes[] = $vtype;
+				
+				$vreplaces = $this->config->item('vehicle_type_replace');				
+				if (isset($vreplaces[$vtype]))
+				{
+					//$vtypes[] = $vreplaces[$vtype];
+				}
+			
+				if ($vtype == 'T1')
+				{
+					//$vtypes[] = "";					
+				}
+				
+				$this->db->where_in("vehicle_type", $vtypes);				
+			break;			
+			default:
+				if ($this->sess->user_type == 1)
+				{
+					if (! isset($_POST['btnsearch']))
+					{
+						$this->db->where("1 = 0", null, false);
+					}
+				}
+			
+				if ($field)
+				{
+					$this->db->where("UPPER(".$field.") LIKE", "%".strtoupper($keyword)."%");
+				}
+
+		}
+		
+		$this->db->join("user", "vehicle_user_id = user_id");
+		if ($field == "user_agent")
+		{
+			$this->db->join("agent", "user_agent = agent_id");
+		}
+		
+		if ($this->config->item('vehicle_type_fixed')) 
+		{
+			$this->db->where("vehicle_type",  $this->config->item('vehicle_type_fixed'));
+		}
+		
+		$allowed_vtype = $this->config->item('allowed_vtype');
+		if ($allowed_vtype && is_array($allowed_vtype) && count($allowed_vtype))
+		{
+			$this->db->where_in("vehicle_type", $allowed_vtype);
+		}
+		
+		$site = $this->config->item('site');
+		if ($site)
+		{
+			$this->db->where("vehicle_site", $site);
+		}
+		
+		$this->db->where("vehicle_status <>", 3);
+		$q = $this->db->get("vehicle");
+
+		$rows = $q->result();
+				
+		for($i=0; $i < count($rows); $i++)
+		{
+			if (isset($vehicles[$rows[$i]->vehicle_device])) 
+			{
+				if ($rows[$i]->vehicle_id < $vehicles[$rows[$i]->vehicle_device])
+				{
+					$vehicles[$rows[$i]->vehicle_device] = $rows[$i]->vehicle_id;
+					continue;
+				}
+			}
+			$vehicles[$rows[$i]->vehicle_device] = $rows[$i]->vehicle_id;
+		}
+		
+		for($i=0; $i < count($rows); $i++)
+		{
+			$arr = explode("@", $rows[$i]->vehicle_device);
+			
+			$rows[$i]->vehicle_id = $vehicles[$rows[$i]->vehicle_device];
+			$rows[$i]->vehicle_device_name = (count($arr) > 0) ? $arr[0] : "";
+			$rows[$i]->vehicle_device_host = (count($arr) > 1) ? $arr[1] : "";
+		}
+
+		if ($field)
+		{
+			$this->params['title'] = $this->lang->line('lvehicle_tracker')." (".$field."=".$keyword.") ";
+		}
+		else
+		{
+			$this->params['title'] = $this->lang->line('lvehicle_tracker');
+		}
+	
+		$this->params['sortby'] = $sortby;
+		$this->params['orderby'] = $orderby;
+		$this->params["data"] = $rows;
+		$this->params["initmap"] = $this->load->view('initmap', $this->params, true);
+		$this->params["updateinfo"] =  $this->load->view('updateinfo', $this->params, true);
+		$this->params["content"] = $this->load->view('trackers/list', $this->params, true);		
+		$this->load->view("templatesess", $this->params);	
+	}
+
+	// len dalam detik
+	function getVehiclesDelayed($bound1, $bound2)
+	{
+		$vdelayeds = array(0);
+	
+		if ($this->sess->user_type == 3)
+		{
+			$this->db->where("user_agent", $this->sess->user_agent);
+			$this->db->join("user", "user_id = vehicle_user_id");	
+		}
+
+		$this->db->where("vehicle_status", 1);
+		$q = $this->db->get("vehicle");
+		if ($q->num_rows() == 0) return $vdelayeds;
+
+		$rows = $q->result();
+		$totalvehicle = count($rows);
+		for($i=0; $i < $totalvehicle; $i++)
+		{
+			$devices = explode("@", $rows[$i]->vehicle_device);
+			if (count($devices) == 1) continue;
+
+			$table = $this->gpsmodel->getGPSTable($rows[$i]->vehicle_type);
+			$sql = "
+							SELECT *
+							FROM
+							(
+									SELECT  * 
+									FROM    `".$this->db->dbprefix.$table."` 
+									WHERE   1
+													AND (`gps_name` =  '".$devices[0]."')
+													AND (`gps_host` =  '".$devices[1]."')													
+									) t1
+							WHERE	1
+							ORDER BY        gps_time DESC 
+							LIMIT 1 OFFSET 0
+			";
+
+			$q = $this->db->query($sql);
+			if ($q->num_rows() == 0)
+			{
+				if ($bound1 < 24*3600) continue;
+				
+                $vdelayeds[] = $rows[$i]->vehicle_id;
+				continue;
+			}
+
+			$row = $q->row();
+			$tv = dbmaketime($row->gps_time)+7*3600;
+		
+			$d = mktime() - $tv;
+			if ($d < $bound1) continue;
+			if (($bound2 > 0) && ($d > $bound2)) continue;
+
+			$vdelayeds[] = $rows[$i]->vehicle_id;
+		}						
+
+		return $vdelayeds;
+	}
+	
+	function search($id, $name, $host)
+	{
+		$offset = isset($_POST['offset']) ? $_POST['offset'] : 0;		
+		switch($id)
+		{
+			case "overspeed":
+				if (! $this->validate_overspeed()) return;
+				$this->searchoverspeed($id, $name, $host, $offset);
+			break;
+			case "parkingtime":
+				if (! $this->validate_parkingtime()) return;
+				$this->searchparkingtime($id, $name, $host, $offset);
+			break;
+			case "history":			
+				if (! $this->validate_history()) return;
+				$this->searchhistory($id, $name, $host, $offset);	
+			break;			
+			case "pulse":			
+				if (! $this->validate_history()) return;
+				$this->searchpulse($id, $name, $host, $offset);	
+			break;
+			case "fuel":			
+				if (! $this->validate_history()) return;
+				$this->searchfuel($id, $name, $host, $offset);	
+			break;			
+			case "odometer":			
+				if (! $this->validate_history()) return;
+				$this->searchodometer($id, $name, $host, $offset);	
+			break;			
+			case "workhour":
+				if (! $this->validate_history()) return;
+				$this->searchworkhour($id, $name, $host, $offset);
+			break;
+			case "engine":
+				if (! $this->validate_history()) return;
+				$this->searchengine($id, $name, $host, $offset);
+			break;
+			case "door":
+				if (! $this->validate_history()) return;
+				$this->searchdoor($id, $name, $host, $offset);
+			break;						
+			case "geofence":
+				if (! $this->validate_history()) return;
+				$geoname = $this->input->post('geo_name');
+				$this->searchgeofence($id, $name, $host, $offset, $geoname);
+			break;
+			case "alarm":
+				if (! $this->validate_history()) return;
+				$this->searchalarm($id, $name, $host, $offset);
+			break;	
+
+		}
+		
+	}
+
+	function searchalarm($id, $name, $host, $offset)
+	{
+		if (isset($_POST['format']))
+		{
+			switch($_POST['format'])
+			{
+				case "csv,":
+					$this->config->config['csv_separator'] = ",";
+				break;
+				case "csv;":
+					$this->config->config['csv_separator'] = ";";
+				break;
+
+			}
+		}
+
+		$limit = (isset($_POST['limit']) && $_POST['limit']) ? $_POST['limit'] : $this->config->item('history_limit_records');
+		$type = isset($_POST['alarmtype']) ? $_POST['alarmtype'] : "";	
+	
+		$order = $this->config->item("orderhist") ? $this->config->item("orderhist") : "desc";
+		
+		$tyesterday = mktime();//-24*3600;
+		$tyesterday = mktime(-7, 59, 59, date('n', $tyesterday), date('j', $tyesterday), date('Y', $tyesterday));		
+		
+		$this->db->where("vehicle_device", $name.'@'.$host);
+		$q = $this->db->get("vehicle");
+		$rowvehicle = $q->row();
+
+		$tblhists = $this->config->item("table_hist_info");
+		$this->tblinfohist = $tblhists[strtoupper($rowvehicle->vehicle_type)];
+		
+		$params['vehicle'] = $rowvehicle;
+		
+		$t1 = mktime(date("G", $this->period1)-7, date("i", $this->period1), date("s", $this->period1), date("n", $this->period1), date("d", $this->period1), date("Y", $this->period1));
+		$t2 = mktime(date("G", $this->period2)-7, date("i", $this->period2), date("s", $this->period2), date("n", $this->period2), date("d", $this->period2), date("Y", $this->period2));
+		
+		$alarms = $this->config->item("ALARMS");
+
+		$this->db->where("gps_info_device", $name.'@'.$host);
+		$this->db->where("gps_info_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("gps_info_time <=", date("Y-m-d H:i:s", $t2));		
+		if ($type)
+		{
+			$this->db->where("gps_info_alarm_alert", $type);
+		} 	
+		else
+		{
+			$this->db->where_in("gps_info_alarm_alert", array_keys($alarms));
+		}
+				
+		if ($_POST['act'] == "export")
+		{
+			if ($this->period1 >= $tyesterday)
+			{
+				// hari ini
+								
+				$this->db->order_by("gps_info_time", $order);
+				$q = $this->db->get($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+			}
+			else
+			{	
+				$this->db->from($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+				$sql1 = $this->db->_compile_select();
+				$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblinfohist, $sql1);
+				
+				$m_sql = "FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_info_time DESC ";
+				$sql = "SELECT * ".$m_sql;
+
+				$q = $this->db->query($sql);
+			}			
+			
+			header("Content-type: application/vnd.ms-excel");
+			header("Content-Disposition: attachment; filename=\"alarm_".date("Ymd_His", $this->period1)."_to_".date("Ymd_His", $this->period1).".csv\"");
+			
+			echo "no";
+			echo $this->config->item('csv_separator');
+			echo "date";
+			echo $this->config->item('csv_separator');
+			echo "time";
+			echo $this->config->item('csv_separator');
+			echo "alarm type";
+			echo $this->config->item('csv_separator');
+			echo "data";
+			echo "\r\n";		
+		}
+		else
+		{
+			if ($this->period1 >= $tyesterday)
+			{
+				// hari ini
+								
+				$this->db->order_by("gps_info_time", $order);
+				$q = $this->db->get($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $limit, $offset);
+			}
+			else
+			{	
+				$this->db->from($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+				$sql1 = $this->db->_compile_select();
+				$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblinfohist, $sql1);
+				
+				$m_sql = "FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_info_time DESC ";
+				$sql = "SELECT * ".$m_sql." LIMIT ".$limit." OFFSET ".$offset;
+
+				$q = $this->db->query($sql);
+			}			
+		}
+		
+		$rows = $q->result();
+		
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->gps_info_time_t = dbmaketime($rows[$i]->gps_info_time);
+			$rows[$i]->gps_info_alarm_alert_name = $alarms[$rows[$i]->gps_info_alarm_alert];
+	
+			if ($_POST['act'] == "export")
+			{
+				echo $i+1;
+				echo $this->config->item('csv_separator').date("d/m/Y", $rows[$i]->gps_info_time_t);
+				echo $this->config->item('csv_separator').date("H:i:s", $rows[$i]->gps_info_time_t);
+				echo $this->config->item('csv_separator').$rows[$i]->gps_info_alarm_alert_name;
+				echo $this->config->item('csv_separator').$rows[$i]->gps_info_alarm_data;
+				echo "\r\n";
+			}			
+		}	
+		
+		if ($_POST['act'] == "export")
+		{
+			return;
+		}			
+		
+		$this->db->where("gps_info_device", $name.'@'.$host);
+		$this->db->where("gps_info_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("gps_info_time <=", date("Y-m-d H:i:s", $t2));		
+		if ($type)
+		{
+			$this->db->where("gps_info_alarm_alert", $type);
+		} 	
+		else
+		{
+			$this->db->where_in("gps_info_alarm_alert", array_keys($alarms));
+		}
+	
+		if ($this->period1 >= $tyesterday)
+		{
+			// hari ini					
+			$total = $this->db->count_all_results($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+		}
+		else
+		{	
+			//$this->db->from($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+			$sql1 = $this->db->_compile_select();
+			$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblinfohist, $sql1);
+			
+			$m_sql = "FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ";
+			$sql = "SELECT COUNT(*) tot ".$m_sql;
+
+			$q = $this->db->query($sql);
+			$row = $q->row();
+
+			$total = $row->tot;
+		}				
+		
+		// paging
+		
+		$this->load->library('pagination1');
+
+		$config['total_rows'] = $total;
+		$config['uri_segment'] = 6;
+		$config['per_page'] = $limit; 
+		$config['num_links'] = floor($total/$limit);
+
+		$this->pagination1->initialize($config); 
+
+		$params['paging'] = $this->pagination1->create_links();		
+		$params['gps_name'] = $name;
+		$params['gps_host'] = $host;
+		$params['offset'] = $offset;
+		$params['data'] = $rows;
+		$params['id'] = $id;
+		$html = $this->load->view("trackers/listsearchalarm", $params, true);
+		
+		$callback['error'] = false;
+		$callback['html'] = $html;
+			
+		echo json_encode($callback);							
+	}
+
+	function searchodometer($id, $name, $host, $offset)
+	{
+		if (isset($_POST['format']))
+		{
+			switch($_POST['format'])
+			{
+				case "csv,":
+					$this->config->config['csv_separator'] = ",";
+				break;
+				case "csv;":
+					$this->config->config['csv_separator'] = ";";
+				break;
+
+			}
+		}
+
+		$limit = (isset($_POST['limit']) && $_POST['limit']) ? $_POST['limit'] : $this->config->item('history_limit_records');
+		$type = isset($_POST['alarmtype']) ? $_POST['alarmtype'] : "";	
+	
+		$order = $this->config->item("orderhist") ? $this->config->item("orderhist") : "desc";
+		
+		$tyesterday = mktime();//-24*3600;
+		$tyesterday = mktime(-7, 59, 59, date('n', $tyesterday), date('j', $tyesterday), date('Y', $tyesterday));		
+		
+		$this->db->where("vehicle_device", $name.'@'.$host);
+		$q = $this->db->get("vehicle");
+		$rowvehicle = $q->row();
+
+		$tblhists = $this->config->item("table_hist");
+		$this->tblhist = $tblhists[strtoupper($rowvehicle->vehicle_type)];
+
+		$tblhists = $this->config->item("table_hist_info");
+		$this->tblinfohist = $tblhists[strtoupper($rowvehicle->vehicle_type)];
+		
+		$params['vehicle'] = $rowvehicle;
+		
+		$t1 = mktime(date("G", $this->period1)-7, date("i", $this->period1), date("s", $this->period1), date("n", $this->period1), date("d", $this->period1), date("Y", $this->period1));
+		$t2 = mktime(date("G", $this->period2)-7, date("i", $this->period2), date("s", $this->period2), date("n", $this->period2), date("d", $this->period2), date("Y", $this->period2));
+		
+		$this->db->where("gps_info_device", $name.'@'.$host);
+		$this->db->where("gps_info_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("gps_info_time <=", date("Y-m-d H:i:s", $t2));		
+				
+		if ($_POST['act'] == "export")
+		{
+			if ($this->period1 >= $tyesterday)
+			{
+				// hari ini
+								
+				$this->db->order_by("gps_info_time", $order);
+				$q = $this->db->get($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+			}
+			else
+			{	
+				$this->db->from($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+				$sql1 = $this->db->_compile_select();
+				$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblinfohist, $sql1);
+				
+				$m_sql = "FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_info_time DESC ";
+				$sql = "SELECT * ".$m_sql;
+
+				$q = $this->db->query($sql);
+			}			
+			
+			header("Content-type: application/vnd.ms-excel");
+			header("Content-Disposition: attachment; filename=\"odometer_".date("Ymd_His", $this->period1)."_to_".date("Ymd_His", $this->period1).".csv\"");
+			
+			echo "no";
+			echo $this->config->item('csv_separator');
+			echo "date";
+			echo $this->config->item('csv_separator');
+			echo "time";
+			echo $this->config->item('csv_separator');
+			echo "position";
+			echo $this->config->item('csv_separator');
+			echo "coordinate";
+			echo $this->config->item('csv_separator');
+			echo "odometer (km)";
+			echo "\r\n";		
+		}
+		else
+		{
+			if ($this->period1 >= $tyesterday)
+			{
+				// hari ini
+								
+				$this->db->order_by("gps_info_time", $order);
+				$q = $this->db->get($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $limit, $offset);
+			}
+			else
+			{	
+				$this->db->from($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+				$sql1 = $this->db->_compile_select();
+				$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblinfohist, $sql1);
+				
+				$m_sql = "FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_info_time DESC ";
+				$sql = "SELECT * ".$m_sql." LIMIT ".$limit." OFFSET ".$offset;
+
+				$q = $this->db->query($sql);
+			}			
+		}
+		
+		$rows = $q->result();
+		
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->gps_info_time_t = dbmaketime($rows[$i]->gps_info_time);
+	
+			if ($_POST['act'] == "export")
+			{
+				unset($rowgps);
+				
+				$tgl = floor($rows[$i]->gps_info_utc_date/10000);
+				$bln = floor(($rows[$i]->gps_info_utc_date%10000)/100);
+				$thn = (($rows[$i]->gps_info_utc_date%10000)%100)+2000;
+
+				$jam = floor($rows[$i]->gps_info_utc_coord/10000);
+				$min = floor(($rows[$i]->gps_info_utc_coord%10000)/100);
+				$det = ($rows[$i]->gps_info_utc_coord%10000)%100;
+
+				$t = mktime($jam,$min, $det, $bln, $tgl, $thn);
+				
+				if ($rows[$i]->gps_info_time_t >= $tyesterday)
+				{
+					$this->db->where("gps_time", date("Y-m-d H:i:s", $t));
+					$this->db->where("gps_name", $name);
+					$this->db->where("gps_host", $host);
+					$q = $this->db->get($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type));
+					
+					if ($q->num_rows() > 0)
+					{					
+						$rowgps = $q->row();
+					}
+					
+				}
+				else
+				{
+					$this->db->where("gps_time", date("Y-m-d H:i:s", $t));
+					$this->db->where("gps_name", $name);
+					$this->db->where("gps_host", $host);
+					$q = $this->db->get($this->tblhist);
+					
+					if ($q->num_rows() > 0)
+					{					
+						$rowgps = $q->row();
+					}
+				}
+				
+				if (isset($rowgps))
+				{
+					$gpsinfo = $this->gpsmodel->GetLastInfo("", "", false, $rowgps, 0, $rowvehicle->vehicle_type);
+
+					if (isset($positions[$gpsinfo->gps_longitude_real_fmt][$gpsinfo->gps_longitude_real_fmt]))
+					{
+						$gpsinfo->georeverse = $positions[$gpsinfo->gps_longitude_real_fmt][$gpsinfo->gps_longitude_real_fmt];
+					}
+					else
+					{
+						$gpsinfo->georeverse = $this->gpsmodel->GeoReverse($gpsinfo->gps_latitude_real_fmt, $gpsinfo->gps_longitude_real_fmt);
+					}
+					
+					$positions[$gpsinfo->gps_longitude_real_fmt][$gpsinfo->gps_longitude_real_fmt] = $gpsinfo->georeverse;
+					$rows[$i]->gpsinfo = $gpsinfo;
+				}				
+				
+				echo $i+1;
+				echo $this->config->item('csv_separator').date("d/m/Y", $rows[$i]->gps_info_time_t+7*24*3600);
+				echo $this->config->item('csv_separator').date("H:i:s", $rows[$i]->gps_info_time_t+7*24*3600);
+				
+				if (isset($gpsinfo))
+				{
+					echo $this->config->item('csv_separator').$rows[$i]->gpsinfo->georeverse->display_name;
+					echo $this->config->item('csv_separator').$rows[$i]->gpsinfo->gps_latitude_real_fmt." ".$rows[$i]->gpsinfo->gps_latitude_real_fmt;
+				}
+				else
+				{
+					echo $this->config->item('csv_separator')."-";
+					echo $this->config->item('csv_separator')."-";
+				}
+				
+				echo $this->config->item('csv_separator').round(($rows[$i]->gps_info_distance)/1000);
+				echo "\r\n";
+			}			
+		}	
+		
+		if ($_POST['act'] == "export")
+		{
+			return;
+		}			
+		
+		$this->db->flush_cache();
+		$this->db->where("gps_info_device", $name.'@'.$host);
+		$this->db->where("gps_info_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("gps_info_time <=", date("Y-m-d H:i:s", $t2));		
+	
+		if ($this->period1 >= $tyesterday)
+		{
+			// hari ini					
+			$total = $this->db->count_all_results($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+		}
+		else
+		{	
+			//$this->db->from($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+			$sql1 = $this->db->_compile_select();
+			$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblinfohist, $sql1);
+			
+			$m_sql = "FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ";
+			$sql = "SELECT COUNT(*) tot ".$m_sql;
+
+			$q = $this->db->query($sql);
+			$row = $q->row();
+
+			$total = $row->tot;
+		}				
+		
+		for($i=0; $i < count($rows); $i++)
+		{
+			unset($rowgps);
+			
+			$tgl = floor($rows[$i]->gps_info_utc_date/10000);
+			$bln = floor(($rows[$i]->gps_info_utc_date%10000)/100);
+			$thn = (($rows[$i]->gps_info_utc_date%10000)%100)+2000;
+
+			$jam = floor($rows[$i]->gps_info_utc_coord/10000);
+			$min = floor(($rows[$i]->gps_info_utc_coord%10000)/100);
+			$det = ($rows[$i]->gps_info_utc_coord%10000)%100;
+
+			$t = mktime($jam,$min, $det, $bln, $tgl, $thn);
+			
+			$rows[$i]->gps_info_time_t = dbmaketime($rows[$i]->gps_info_time);
+			
+			if ($rows[$i]->gps_info_time_t >= $tyesterday)
+			{
+				$this->db->where("gps_time", date("Y-m-d H:i:s", $t));
+				$this->db->where("gps_name", $name);
+				$this->db->where("gps_host", $host);
+				$q = $this->db->get($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type));
+				
+				if ($q->num_rows() > 0)
+				{					
+					$rowgps = $q->row();
+				}
+				
+			}
+			else
+			{
+				$this->db->where("gps_time", date("Y-m-d H:i:s", $t));
+				$this->db->where("gps_name", $name);
+				$this->db->where("gps_host", $host);
+				$q = $this->db->get($this->tblhist);
+				
+				if ($q->num_rows() > 0)
+				{					
+					$rowgps = $q->row();
+				}
+			}
+			
+			if (! isset($rowgps)) continue;
+			
+			$gpsinfo = $this->gpsmodel->GetLastInfo("", "", false, $rowgps, 0, $rowvehicle->vehicle_type);
+
+			if (isset($positions[$gpsinfo->gps_longitude_real_fmt][$gpsinfo->gps_longitude_real_fmt]))
+			{
+				$gpsinfo->georeverse = $positions[$gpsinfo->gps_longitude_real_fmt][$gpsinfo->gps_longitude_real_fmt];
+			}
+			else
+			{
+				$gpsinfo->georeverse = $this->gpsmodel->GeoReverse($gpsinfo->gps_latitude_real_fmt, $gpsinfo->gps_longitude_real_fmt);
+			}
+			
+			$positions[$gpsinfo->gps_longitude_real_fmt][$gpsinfo->gps_longitude_real_fmt] = $gpsinfo->georeverse;
+
+			$rows[$i]->gpsdata = $rowgps;
+			$rows[$i]->gpsinfo = $gpsinfo;			
+		}		
+		// paging
+		
+		$odometer1 = 0;
+		if (count($rows) > 0)
+		{
+			$odometer = $rows[0]->gps_info_distance;			
+			$odometer1 = $odometer;
+			
+			$this->db->limit(1);
+			$this->db->order_by("gps_info_time", "asc");
+			$this->db->where("gps_info_device", $name.'@'.$host);
+			$this->db->where("gps_info_time >=", date("Y-m-d H:i:s", $t1));
+			$this->db->where("gps_info_time <=", date("Y-m-d H:i:s", $t2));		
+			if ($this->period1 >= $tyesterday)
+			{
+				// hari ini					
+				$q = $this->db->get($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));			
+				
+				if ($q->num_rows() > 0)
+				{
+					$rowodo = $q->row();
+					
+					$odometer -= $rowodo->gps_info_distance;
+				}
+			}
+			else
+			{
+				$sql = sprintf("
+					SELECT * FROM
+					(
+						SELECT 	* 
+						FROM 		%s%s 
+						WHERE 		1
+									AND (gps_info_device = '%s@%s') 
+									AND (gps_info_time >= '%s')
+									AND (gps_info_time <= '%s')
+						UNION
+						SELECT 	* 
+						FROM 		%s%s 
+						WHERE 		1
+									AND (gps_info_device = '%s@%s') 
+									AND (gps_info_time >= '%s')
+									AND (gps_info_time <= '%s')
+					) tbl
+					ORDER BY	gps_info_time ASC
+					LIMIT 		1
+					"
+					, $this->db->dbprefix, $this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $name, $host, date("Y-m-d H:i:s", $t1), date("Y-m-d H:i:s", $t2)
+					, $this->db->dbprefix, $this->tblinfohist, $name, $host, date("Y-m-d H:i:s", $t1), date("Y-m-d H:i:s", $t2)
+				);
+				
+				$q = $this->db->query($sql);
+
+				if ($q->num_rows() > 0)
+				{
+					$rowodo = $q->row();
+					$odometer -= $rowodo->gps_info_distance;
+				}
+
+			}
+		}
+		else
+		{
+			$odometer = 0;
+		}
+		
+		$this->load->library('pagination1');
+
+		$config['total_rows'] = $total;
+		$config['uri_segment'] = 6;
+		$config['per_page'] = $limit; 
+		$config['num_links'] = floor($total/$limit);
+
+		$this->pagination1->initialize($config); 
+
+		$params['totalodometer'] = round($odometer/1000);
+		$params['totalodometer1'] = round(($odometer1+$rowvehicle->vehicle_odometer*1000)/1000);
+		$params['paging'] = $this->pagination1->create_links();		
+		$params['gps_name'] = $name;
+		$params['gps_host'] = $host;
+		$params['offset'] = $offset;
+		$params['data'] = $rows;
+		$params['id'] = $id;
+		$params['vehicle'] = $rowvehicle;
+		$html = $this->load->view("trackers/listsearchodometer", $params, true);
+		
+		$callback['title'] = $rowvehicle->vehicle_no." ".$rowvehicle->vehicle_name;
+		$callback['error'] = false;
+		$callback['html'] = $html;
+			
+		echo json_encode($callback);							
+	}
+
+	function searchhistory($id, $name, $host, $offset)
+	{
+		$isanimate = isset($_POST['isanimate']) && ($_POST['isanimate'] == 1);
+		
+		if (isset($_POST['format']))
+		{
+			switch($_POST['format'])
+			{
+				case "csv,":
+					$this->config->config['csv_separator'] = ",";
+				break;
+				case "csv;":
+					$this->config->config['csv_separator'] = ";";
+				break;
+
+			}
+		}
+	
+		$limit = (isset($_POST['limit']) && $_POST['limit']) ? $_POST['limit'] : $this->config->item('history_limit_records');
+		$datatype = isset($_POST['data']) ? $_POST['data'] : 1;
+		
+		$order = $this->config->item("orderhist") ? $this->config->item("orderhist") : "desc";
+		
+		$tyesterday = mktime();//-24*3600;
+		$tyesterday = mktime(-7, 59, 59, date('n', $tyesterday), date('j', $tyesterday), date('Y', $tyesterday));		
+		
+		$this->db->where("vehicle_device", $name.'@'.$host);
+		$q = $this->db->get("vehicle");
+		$rowvehicle = $q->row();
+		
+		$tblhists = $this->config->item("table_hist");
+		$this->tblhist = $tblhists[strtoupper($rowvehicle->vehicle_type)];
+		
+		$tblhistinfos = $this->config->item("table_hist_info");
+		$this->tblinfohist = $tblhistinfos[strtoupper($rowvehicle->vehicle_type)];
+		
+		
+		$params['vehicle'] = $rowvehicle;
+
+		$isgtp = in_array(strtoupper($rowvehicle->vehicle_type), $this->config->item("vehicle_gtp"));
+		
+		$t1 = mktime(date("G", $this->period1)-7, date("i", $this->period1), date("s", $this->period1), date("n", $this->period1), date("d", $this->period1), date("Y", $this->period1));
+		$t2 = mktime(date("G", $this->period2)-7, date("i", $this->period2), date("s", $this->period2), date("n", $this->period2), date("d", $this->period2), date("Y", $this->period2));
+		
+		$this->db->where("gps_status <>", "V");
+		$this->db->where("gps_name", $name);
+		$this->db->where("gps_host", $host);
+		$this->db->where("gps_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("gps_time <=", date("Y-m-d H:i:s", $t2));		
+		
+		if (($_POST['act'] == "export") || $isanimate)
+		{
+			if ($this->period1 >= $tyesterday)
+			{
+				// hari ini
+				$this->db->order_by("gps_time", $order);
+                if($isanimate){
+                    $this->db->limit($limit, $offset);
+                }
+				$q = $this->db->get($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type));
+			}
+			else
+			{	
+				$this->db->from($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type));
+				$sql1 = $this->db->_compile_select();
+				$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblhist, $sql1);
+				
+				$m_sql = "FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_time DESC ";
+				$sql = "SELECT * ".$m_sql;
+                if($isanimate){
+                    $sql .= " LIMIT ".$limit." OFFSET ".$offset;
+                }
+				$q = $this->db->query($sql);
+			}			
+			
+			if ($_POST['act'] == "export")
+			{
+				header("Content-type: application/vnd.ms-excel");
+				header("Content-Disposition: attachment; filename=\"history_".date("Ymd_His", $this->period1)."_to_".date("Ymd_His", $this->period1).".csv\"");
+				
+				echo "Periode: ".date("d/m/Y H:i:s", $this->period1)." to ".date("d/m/Y H:i:s", $this->period2)."\r\n\r\n";			
+			
+				echo "no";
+				echo $this->config->item('csv_separator');
+				echo "date";
+				echo $this->config->item('csv_separator');
+				echo "time";
+				echo $this->config->item('csv_separator');
+				echo "position";
+				echo $this->config->item('csv_separator');
+				echo "coordinate";
+				echo $this->config->item('csv_separator');
+				echo "speed";
+				echo "\r\n";		
+			}
+		}
+		else
+		{
+			if ($this->period1 >= $tyesterday)
+			{
+				// hari ini
+				
+				$this->db->order_by("gps_time", $order);
+				if ($datatype == 2)
+				{
+					$q = $this->db->get($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type));
+				}
+				else
+				{
+					$q = $this->db->get($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type), $limit, $offset);
+				}
+				
+			}
+			else
+			{	
+				$this->db->from($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type));
+				$sql1 = $this->db->_compile_select();
+				$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblhist, $sql1);
+				
+				$m_sql = "FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_time DESC ";
+				
+				if ($datatype == 2)
+				{
+					$sql = "SELECT * ".$m_sql;
+				}
+				else
+				{
+					$sql = "SELECT * ".$m_sql." LIMIT ".$limit." OFFSET ".$offset;
+				}
+
+				$q = $this->db->query($sql);
+			}			
+		}
+		
+		$rows = $q->result();
+		if ($datatype == 2)
+		{
+			for($i=count($rows)-1; $i >= 0; $i--)
+			{
+				if (($i+1) >= count($rows))
+				{
+					$rowsummary[] = $rows[$i];
+					continue;
+				}
+				
+				$latbefore = getLatitude($rows[$i+1]->gps_latitude, $rows[$i+1]->gps_ns);
+				$lngbefore = getLongitude($rows[$i+1]->gps_longitude, $rows[$i+1]->gps_ew);
+				
+				$latcurrent = getLatitude($rows[$i]->gps_latitude, $rows[$i]->gps_ns);
+				$lngcurrent = getLongitude($rows[$i]->gps_longitude, $rows[$i]->gps_ew);
+				
+				
+				if (sprintf("%.4f,%.4f", $latbefore, $lngbefore) != sprintf("%.4f,%.4f", $latcurrent, $lngcurrent))
+				{
+					$rowsummary[] = $rows[$i];
+					continue;
+				}
+
+				if ($rows[$i+1]->gps_speed != $rows[$i]->gps_speed)
+				{
+					$rowsummary[] = $rows[$i];
+					continue;
+				}
+			}
+			
+			$rows = array();
+			$totalsummary = 0;
+			if (isset($rowsummary))
+			{
+				$rows = array_reverse($rowsummary);			
+				$totalsummary = count($rows);
+					
+				$rows = array_splice($rows, $offset, $limit);							
+			}
+		}
+		
+		$tblhists = $this->config->item("table_hist_info");
+		$tblinfohist = $tblhists[strtoupper($rowvehicle->vehicle_type)];
+		
+		unset($map_params);
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i] = $this->gpsmodel->GetLastInfo("", "", false, $rows[$i], 0, $rowvehicle->vehicle_type);
+			
+			$map_params[] = array($rows[$i]->gps_longitude_real_fmt, $rows[$i]->gps_latitude_real_fmt);
+			
+			if ($this->period1 >= $tyesterday)
+			{
+				$this->db->where("gps_info_time", date("Y-m-d H:i:s", $rows[$i]->gps_timestampori));
+				$this->db->where("gps_info_device", $rowvehicle->vehicle_device);
+				$q = $this->db->get($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), 1, 0);
+			}
+			else
+			{
+				$sql = sprintf("SELECT * FROM %s%s WHERE gps_info_time = '%s' AND gps_info_device = '%s' LIMIT 1 OFFSET 0 UNION SELECT * FROM %s%s WHERE gps_info_time = '%s' AND gps_info_device = '%s' LIMIT 1 OFFSET 0"
+					, $this->db->dbprefix, $this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), date("Y-m-d H:i:s", $rows[$i]->gps_timestampori), $rowvehicle->vehicle_device
+					, $this->db->dbprefix, $tblinfohist, date("Y-m-d H:i:s", $rows[$i]->gps_timestampori), $rowvehicle->vehicle_device
+				);
+				
+				$q = $this->db->query($sql);
+			}
+			
+			if ($q->num_rows())
+			{
+				$rowinfo = $q->row();				
+				
+				$ioport = $rowinfo->gps_info_io_port;
+				$status1 = ((strlen($ioport) > 4) && ($ioport[4] == 1));
+				$rows[$i]->status1 = $status1 ? $this->lang->line('lon') : $this->lang->line('loff');
+				$rows[$i]->odometer = number_format(round(($rowinfo->gps_info_distance+$rowvehicle->vehicle_odometer*1000)/1000), 0, "", ","); 
+			}
+			else
+			{
+				// $this->lang->line('lon') : $this->lang->line('loff')
+				$rows[$i]->status1 = "-";
+				$rows[$i]->odometer = "-";
+			}
+			
+			
+			if (! $isanimate)
+			{
+				if (isset($positions[$rows[$i]->gps_longitude_real_fmt][$rows[$i]->gps_longitude_real_fmt]))
+				{
+					$rows[$i]->georeverse = $positions[$rows[$i]->gps_longitude_real_fmt][$rows[$i]->gps_longitude_real_fmt];
+				}
+				else
+				{
+					$rows[$i]->georeverse = $this->gpsmodel->GeoReverse($rows[$i]->gps_latitude_real_fmt, $rows[$i]->gps_longitude_real_fmt);
+				}
+				
+				$positions[$rows[$i]->gps_longitude_real_fmt][$rows[$i]->gps_longitude_real_fmt] = $rows[$i]->georeverse;
+			}
+			
+			if ($_POST['act'] == "export")
+			{
+				echo $i+1;
+				echo $this->config->item('csv_separator').date("d/m/Y", $rows[$i]->gps_timestamp);
+				echo $this->config->item('csv_separator').date("H:i:s", $rows[$i]->gps_timestamp);
+				echo $this->config->item('csv_separator').str_replace($this->config->item('csv_separator'), " ", $rows[$i]->georeverse->display_name);
+				echo $this->config->item('csv_separator')."(".$rows[$i]->gps_longitude_real_fmt." ".$rows[$i]->gps_latitude_real_fmt.")";
+				echo $this->config->item('csv_separator').$rows[$i]->gps_speed_fmt;
+				echo "\r\n";
+			}			
+		}	
+		
+		if (isset($map_params))
+		{
+			$uniqid = md5( uniqid() );
+			
+			unset($insert);
+						
+			$insert['log_created'] = date("Y-m-d H:i:s");
+			$insert['log_creator'] = $this->sess->user_id;
+			$insert['log_type'] = 'mapparams'.$uniqid;
+			$insert['log_ip'] = "";			
+			$insert['log_data'] = json_encode($map_params);
+			$insert['log_version'] = "desktop";
+			$insert['log_target'] = "";
+			
+			$this->db->insert("log", $insert);
+		}
+		
+		if ($_POST['act'] == "export")
+		{
+			return;
+		}			
+		
+		if ($isanimate)
+		{
+			$this->animate($rows, $rowvehicle, $t1+7*3600, $t2+7*3600);
+			return;
+		}
+			
+		$this->db->flush_cache();	
+		$this->db->select("gps_longitude, gps_latitude, gps_ew, gps_ns, gps_time");
+		$this->db->where("gps_status <>", "V");
+		$this->db->where("gps_name", $name);
+		$this->db->where("gps_host", $host);
+		$this->db->where("gps_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("gps_time <=", date("Y-m-d H:i:s", $t2));		
+		
+		$odometer = 0;
+		$odometer1 = 0;
+			
+		if ($this->period1 >= $tyesterday)
+		{
+			// hari ini
+		
+			if ($isgtp)
+			{
+				$total = $this->db->count_all_results($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type));
+				if ($datatype == 2)
+				{
+					$total = $totalsummary;
+				}
+				
+				$this->db->flush_cache();
+				$this->db->where("gps_info_time >=", date("Y-m-d H:i:s", $t1));
+				$this->db->where("gps_info_time <=", date("Y-m-d H:i:s", $t2));		
+				$this->db->where("gps_info_device", $name.'@'.$host);
+				$this->db->order_by("gps_info_time", "desc");
+				$this->db->limit(1);
+				$q = $this->db->get($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+			
+				if ($q->num_rows() == 0)
+				{
+					$odometer = 0;
+				}
+				else
+				{
+					$row = $q->row();
+					$odometer = $row->gps_info_distance;
+					$odometer1 = $odometer;
+
+					$this->db->flush_cache();
+					$this->db->where("gps_info_time >=", date("Y-m-d H:i:s", $t1));
+					$this->db->where("gps_info_time <=", date("Y-m-d H:i:s", $t2));		
+					$this->db->where("gps_info_device", $name.'@'.$host);
+					$this->db->order_by("gps_info_time", "asc");
+					$this->db->limit(1);
+					$q = $this->db->get($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+					if ($q->num_rows() > 0)
+					{
+						$row = $q->row();
+						$odometer -= $row->gps_info_distance;
+					}
+				}
+				
+			}
+			else
+			{
+				$q = $this->db->get($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type));
+			}
+		}
+		else
+		{	
+			if ($isgtp)
+			{
+				if ($datatype == 2)
+				{
+					$total = $totalsummary;
+				}
+				else
+				{
+					$sql = "SELECT COUNT(*) total ".$m_sql;
+					$q = $this->db->query($sql);				
+					$row = $q->row();				
+					$total = $row->total;
+				}
+				
+				$sql = sprintf("SELECT * FROM
+								(
+									SELECT 	gps_info_time, gps_info_distance 
+									FROM 	%s%s 
+									WHERE 	TRUE 
+											AND (gps_info_device = '%s')
+											AND (gps_info_time >= '%s') 
+											AND (gps_info_time <= '%s') 
+									UNION 
+									SELECT 	gps_info_time, gps_info_distance 
+									FROM 	%s%s 
+									WHERE 	TRUE 
+											AND (gps_info_device = '%s')
+											AND (gps_info_time >= '%s') 
+											AND (gps_info_time <= '%s') 
+								) tbl ORDER BY gps_info_time DESC LIMIT 1 OFFSET 0
+								"
+								, $this->db->dbprefix, $this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $rowvehicle->vehicle_device
+								, date("Y-m-d H:i:s", $t1), date("Y-m-d H:i:s", $t2)
+								, $this->db->dbprefix, $this->tblinfohist, $rowvehicle->vehicle_device			
+								, date("Y-m-d H:i:s", $t1), date("Y-m-d H:i:s", $t2));
+				$q = $this->db->query($sql);
+				
+				if ($q->num_rows() == 0)
+				{
+					$odometer = 0;
+				}
+				else
+				{
+					$row = $q->row();
+					$odometer = $row->gps_info_distance;
+					$odometer1 = $odometer;
+
+					$sql = sprintf("SELECT * FROM
+									(
+										SELECT 	gps_info_time, gps_info_distance 
+										FROM 	%s%s 
+										WHERE 	TRUE 
+												AND (gps_info_device = '%s')
+												AND (gps_info_time >= '%s') 
+												AND (gps_info_time <= '%s') 
+										UNION 
+										SELECT 	gps_info_time, gps_info_distance 
+										FROM 	%s%s 
+										WHERE 	TRUE 
+												AND (gps_info_device = '%s')
+												AND (gps_info_time >= '%s') 
+												AND (gps_info_time <= '%s') 
+									) tbl ORDER BY gps_info_time ASC LIMIT 1 OFFSET 0
+									"
+									, $this->db->dbprefix, $this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $rowvehicle->vehicle_device
+									, date("Y-m-d H:i:s", $t1), date("Y-m-d H:i:s", $t2)
+									, $this->db->dbprefix, $this->tblinfohist, $rowvehicle->vehicle_device			
+									, date("Y-m-d H:i:s", $t1), date("Y-m-d H:i:s", $t2));
+					
+					$q = $this->db->query($sql);
+					
+					if ($q->num_rows() > 0)
+					{
+						$row = $q->row();
+						$odometer -= $row->gps_info_distance;
+					}
+				}
+								
+			}
+			else
+			{
+				$sql = "SELECT * ".$m_sql;
+				$q = $this->db->query($sql);
+			}
+		}				
+		
+		if (! $isgtp)
+		{
+			$total = $q->num_rows();
+			if ($datatype == 2)
+			{
+				$total = $totalsummary;
+			}
+			
+			$rowsodo = $q->result();
+			
+			$odometer = 0;
+			for($i=1; $i < count($rowsodo); $i++)
+			{
+				$lon1 = getLongitude($rowsodo[$i]->gps_longitude, $rowsodo[$i]->gps_ew);
+				$lat1 = getLatitude($rowsodo[$i]->gps_latitude, $rowsodo[$i]->gps_ns);
+
+				$lon2 = getLongitude($rowsodo[$i-1]->gps_longitude, $rowsodo[$i-1]->gps_ew);
+				$lat2 = getLatitude($rowsodo[$i-1]->gps_latitude, $rowsodo[$i-1]->gps_ns);
+				
+				$odometer += $this->gpsmodel->distanceByDegree($lat1, $lon1, $lat2, $lon2)*1000;
+			}
+			
+			//$odometer1 = $odometer;
+		}
+
+		// paging
+		
+		$this->load->library('pagination1');
+
+		$config['total_rows'] = $total;
+		$config['uri_segment'] = 6;
+		$config['per_page'] = $limit; 
+		$config['num_links'] = floor($total/$limit);
+
+		$this->pagination1->initialize($config); 
+
+		$params['uniqid'] = isset($uniqid) ? $uniqid : "";
+		$params['isgtp'] = $isgtp;
+		$params['totalodometer1'] = round(($odometer1+$rowvehicle->vehicle_odometer*1000)/1000);
+		$params['odometer1'] = number_format(round($odometer/1000), 0, ".", ",");
+		$params['paging'] = $this->pagination1->create_links();		
+		$params['gps_name'] = $name;
+		$params['gps_host'] = $host;
+		$params['offset'] = $offset;
+		$params['data'] = $rows;
+		$params['id'] = $id;
+		$html = $this->load->view("trackers/listsearch", $params, true);
+		
+		$callback['title'] = $rowvehicle->vehicle_no." ".$rowvehicle->vehicle_name;
+		$callback['error'] = false;
+		$callback['html'] = $html;
+			
+		echo json_encode($callback);							
+	}
+
+	function searchpulse($id, $name, $host, $offset)
+	{
+		if (isset($_POST['format']))
+		{
+			switch($_POST['format'])
+			{
+				case "csv,":
+					$this->config->config['csv_separator'] = ",";
+				break;
+				case "csv;":
+					$this->config->config['csv_separator'] = ";";
+				break;
+
+			}
+		}
+	
+		$limit = (isset($_POST['limit']) && $_POST['limit']) ? $_POST['limit'] : $this->config->item('history_limit_records');		
+		$order = $this->config->item("orderhist") ? $this->config->item("orderhist") : "desc";
+		
+		$tyesterday = mktime();//-24*3600;
+		$tyesterday = mktime(-7, 59, 59, date('n', $tyesterday), date('j', $tyesterday), date('Y', $tyesterday));		
+		
+		$this->db->where("vehicle_device", $name.'@'.$host);
+		$q = $this->db->get("vehicle");
+		$rowvehicle = $q->row();
+		
+		$tblhists = $this->config->item("table_hist_info");
+		$this->tblhist = $tblhists[strtoupper($rowvehicle->vehicle_type)];
+		
+		$tblhistinfos = $this->config->item("table_hist_info");
+		$this->tblinfohist = $tblhistinfos[strtoupper($rowvehicle->vehicle_type)];		
+		
+		$params['vehicle'] = $rowvehicle;
+
+		$isgtp = in_array(strtoupper($rowvehicle->vehicle_type), $this->config->item("vehicle_gtp"));
+		
+		$t1 = mktime(date("G", $this->period1)-7, date("i", $this->period1), date("s", $this->period1), date("n", $this->period1), date("d", $this->period1), date("Y", $this->period1));
+		$t2 = mktime(date("G", $this->period2)-7, date("i", $this->period2), date("s", $this->period2), date("n", $this->period2), date("d", $this->period2), date("Y", $this->period2));
+		
+		$this->db->where("gps_info_device", $name.'@'.$host);
+		$this->db->where("gps_info_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("gps_info_time <=", date("Y-m-d H:i:s", $t2));		
+		
+		if ($_POST['act'] == "export")
+		{
+			if ($this->period1 >= $tyesterday)
+			{
+				// hari ini
+				
+				$this->db->order_by("gps_info_time", $order);
+				$q = $this->db->get($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+			}
+			else
+			{	
+				$this->db->from($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+				$sql1 = $this->db->_compile_select();
+				$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblhist, $sql1);
+				
+				$m_sql = "FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_info_time DESC ";
+				$sql = "SELECT * ".$m_sql;
+
+				$q = $this->db->query($sql);
+			}			
+			
+			if ($_POST['act'] == "export")
+			{
+				header("Content-type: application/vnd.ms-excel");
+				header("Content-Disposition: attachment; filename=\"pulse_".date("Ymd_His", $this->period1)."_to_".date("Ymd_His", $this->period1).".csv\"");
+				
+				echo "Periode: ".date("d/m/Y H:i:s", $this->period1)." to ".date("d/m/Y H:i:s", $this->period2)."\r\n\r\n";			
+			
+				echo "no";
+				echo $this->config->item('csv_separator');
+				echo "date";
+				echo $this->config->item('csv_separator');
+				echo "time";
+				echo $this->config->item('csv_separator');
+				echo "pulse";
+				echo "\r\n";		
+			}
+		}
+		else
+		{
+			if ($this->period1 >= $tyesterday)
+			{
+				// hari ini
+				
+				$this->db->order_by("gps_info_time", $order);
+				$q = $this->db->get($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+			}
+			else
+			{	
+				$this->db->from($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+				$sql1 = $this->db->_compile_select();
+				$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblhist, $sql1);
+				
+				$m_sql = "FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_info_time DESC ";				
+				$sql = "SELECT * ".$m_sql;
+
+				$q = $this->db->query($sql);
+			}			
+		}
+		
+		$rows = $q->result();
+		for($i=count($rows)-1; $i >= 0; $i--)
+		{
+			$rows[$i]->pulse = hexdec(substr($rows[$i]->gps_info_ad_input, 0, 5));
+			if (($i+1) >= count($rows))
+			{
+				$rowsummary[] = $rows[$i];
+				continue;
+			}
+			
+			if ($rows[$i]->pulse == $rows[$i+1]->pulse) continue;
+				
+			$rowsummary[] = $rows[$i];
+		}
+		
+		$rows = array();
+		$total = 0;
+		if (isset($rowsummary))
+		{					
+			//$rows = array_reverse($rowsummary);			
+			
+			$rows = $rowsummary;
+			$total_pulse = 0;
+			
+			for($i=1; $i < count($rows); $i++)
+			{
+				$delta = $rows[$i-1]->pulse - $rows[$i]->pulse;
+				if ($delta < 0) continue;
+				
+				$total_pulse += $delta;
+			}
+			
+			$total = count($rows);
+				
+			$rows = array_splice($rows, $offset, $limit);							
+		}
+		
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->gps_info_time_t = dbmaketime($rows[$i]->gps_info_time)+7*3600;
+			
+			if ($_POST['act'] == "export")
+			{
+				echo $i+1;
+				echo $this->config->item('csv_separator').date("d/m/Y", $rows[$i]->gps_info_time_t);
+				echo $this->config->item('csv_separator').date("H:i:s", $rows[$i]->gps_info_time_t);
+				echo $this->config->item('csv_separator').number_format($rows[$i]->pulse, 0, "", ".");
+				echo "\r\n";
+			}			
+		}	
+		
+		if ($_POST['act'] == "export")
+		{
+			return;
+		}			
+		
+		// paging
+		
+		$this->load->library('pagination1');
+
+		$config['total_rows'] = $total;
+		$config['uri_segment'] = 6;
+		$config['per_page'] = $limit; 
+		$config['num_links'] = floor($total/$limit);
+
+		$this->pagination1->initialize($config); 
+
+		$params['total_pulse'] = abs($total_pulse);
+		$params['paging'] = $this->pagination1->create_links();		
+		$params['gps_name'] = $name;
+		$params['gps_host'] = $host;
+		$params['offset'] = $offset;
+		$params['data'] = $rows;
+		$html = $this->load->view("trackers/listsearchpulse", $params, true);
+		
+		$callback['error'] = false;
+		$callback['html'] = $html;
+			
+		echo json_encode($callback);							
+	}
+
+	function searchworkhour($id, $name, $host, $offset)
+	{
+		if (isset($_POST['format']))
+		{
+			switch($_POST['format'])
+			{
+				case "csv,":
+					$this->config->config['csv_separator'] = ",";
+				break;
+				case "csv;":
+					$this->config->config['csv_separator'] = ";";
+				break;
+
+			}
+		}
+
+		$limit = (isset($_POST['limit']) && $_POST['limit']) ? $_POST['limit'] : $this->config->item('history_limit_records');
+		
+		$this->db->where("vehicle_device", $name.'@'.$host);
+		$q = $this->db->get("vehicle");
+		$rowvehicle = $q->row();
+
+		$tblhists = $this->config->item("table_hist_info");
+		$this->tblinfohist = $tblhists[strtoupper($rowvehicle->vehicle_type)];
+		
+		$tyesterday = mktime();//-24*3600;
+		$tyesterday = mktime(-7, 59, 59, date('n', $tyesterday), date('j', $tyesterday), date('Y', $tyesterday));		
+				
+		$t1 = mktime(date("G", $this->period1)-7, date("i", $this->period1), date("s", $this->period1), date("n", $this->period1), date("d", $this->period1), date("Y", $this->period1));
+		$t2 = mktime(date("G", $this->period2)-7, date("i", $this->period2), date("s", $this->period2), date("n", $this->period2), date("d", $this->period2), date("Y", $this->period2));
+		
+		$this->db->where("gps_info_device", $name.'@'.$host);		
+		$this->db->where("gps_info_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("gps_info_time <=", date("Y-m-d H:i:s", $t2));		
+		$this->db->from($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+		
+		if ($this->period1 >= $tyesterday)
+		{
+			$this->db->order_by("gps_info_time", "ASC");
+			$q = $this->db->get();
+		}
+		else
+		{
+			$sql1 = $this->db->_compile_select();
+			$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblinfohist, $sql1);
+			
+			$sql = "SELECT * FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_info_time ASC ";
+			$q = $this->db->query($sql);
+		}
+		
+		$rows = $q->result();
+
+		$onoffs = array();
+		$i = 0;
+		$totalt = 0;
+		while(1)
+		{
+			if ($i >= count($rows)) break;
+			
+			unset($iperiod1);
+			unset($iperiod2);
+			
+			// maju sampe status on
+			while(1)
+			{
+				if ($i >= count($rows)) break;				
+				$ioport = $rows[$i]->gps_info_io_port;
+				
+				if ($ioport[4] == 1) 
+				{
+					$iperiod1 = $i++;
+					break;
+				}
+				$i++;
+			}
+			
+			//maju sampe status off
+			while(1)
+			{
+				if ($i >= count($rows)) break;				
+				$ioport = $rows[$i]->gps_info_io_port;				
+				
+				if ($ioport[4] == 0) 
+				{
+					$iperiod2 = $i++;
+					break;
+				}
+				$i++;
+			}
+			
+			if (! isset($iperiod1)) continue;
+			if (isset($iperiod2))
+			{				
+				$t1 = dbmaketime($rows[$iperiod1]->gps_info_time);
+				$t2 = dbmaketime($rows[$iperiod2]->gps_info_time);
+				
+				$t1 = mktime(date('G', $t1)+7, date('i', $t1), date('s', $t1), date('n', $t1), date('j', $t1), date('Y', $t1));
+				$t2 = mktime(date('G', $t2)+7, date('i', $t2), date('s', $t2), date('n', $t2), date('j', $t2), date('Y', $t2));
+				
+				$dt = $t2-$t1;
+				$totalt += $dt;
+				
+				$onoffs[] = array($t1, $t2, $dt, sprintf("%d:%02d:%02d", floor($dt)/3600, floor(($dt%3600)/60), ($dt%3600)%60));
+				continue;
+			}
+			
+			// ini pasti terakhir, artinya posisi terakhir dalam posisi ON
+			
+			$t1 = dbmaketime($rows[$iperiod1]->gps_info_time);
+			$t1 = mktime(date('G', $t1)+7, date('i', $t1), date('s', $t1), date('n', $t1), date('j', $t1), date('Y', $t1));
+			
+			$t2 = dbmaketime($rows[count($rows)-1]->gps_info_time);	
+			$t2 = mktime(date('G', $t2)+7, date('i', $t2), date('s', $t2), date('n', $t2), date('j', $t2), date('Y', $t2));
+			//$t2 = mktime(date('G'), date('i'), date('s'), date('n'), date('j'), date('Y'));
+			
+			$dt = $t2-$t1;
+			$totalt += $dt;
+			
+			$onoffs[] = array($t1, $t2, $dt, sprintf("%d:%02d:%02d", floor($dt)/3600, floor(($dt%3600)/60), ($dt%3600)%60));			
+		}
+
+		if ($_POST['act'] == "export")
+		{
+			header("Content-type: application/vnd.ms-excel");
+			header("Content-Disposition: attachment; filename=\"workhour_".date("Ymd_His", $this->period1)."_to_".date("Ymd_His", $this->period1).".csv\"");
+			
+			echo $this->lang->line("llongtimetotal").": ".sprintf("%d:%02d:%02d", floor($totalt)/3600, floor(($totalt%3600)/60), ($totalt%3600)%60)." \r\n";			
+			echo "no";
+			echo $this->config->item('csv_separator');
+			echo "period";
+			echo $this->config->item('csv_separator');
+			echo "long time";
+			echo "\r\n";		
+	
+			for($i=0; $i < count($onoffs); $i++) 
+			{
+				echo $i+1+$offset;
+				echo $this->config->item('csv_separator').date('M, jS Y H:i:s ', $onoffs[$i][0]);
+				echo $this->config->item('csv_separator').date('M, jS Y H:i:s ', $onoffs[$i][1]);
+				echo $this->config->item('csv_separator').$onoffs[$i][3];
+				echo "\r\n";
+			}
+			
+			return;
+		}
+
+		$total = count($onoffs);
+		$onoffs = array_slice($onoffs, $offset, $limit);
+		
+		// paging
+	
+		$this->load->library('pagination1');
+
+		$config['total_rows'] = $total;
+		$config['uri_segment'] = 6;
+		$config['per_page'] = $limit; 
+		$config['num_links'] = floor($total/$limit);
+
+		$this->pagination1->initialize($config); 
+
+		$params['paging'] = $this->pagination1->create_links();
+				
+		$params['gps_name'] = $name;
+		$params['gps_host'] = $host;			
+		$params['offset'] = $offset;
+		$params['data'] = $onoffs;
+		$params['longtime'] = sprintf("%d:%02d:%02d", floor($totalt)/3600, floor(($totalt%3600)/60), ($totalt%3600)%60);
+		$html = $this->load->view("trackers/listsearchworkhour", $params, true);
+
+		$callback['title'] = $rowvehicle->vehicle_no." ".$rowvehicle->vehicle_name;
+		$callback['error'] = false;
+		$callback['html'] = $html;
+		
+		echo json_encode($callback);					
+	}
+	
+	function totalengine($vehicle, $t1, $t2, $status, $engine1, $engine2)
+	{
+		switch($status)
+		{
+			case "on":
+				$this->db->where("gps_info_io_port REGEXP '^.{4}1'", null);
+			break;
+			case "off":
+				$this->db->where("gps_info_io_port REGEXP '^.{4}0'", null);
+			break;
+			case "hold":
+				$this->db->where("gps_info_io_port REGEXP '^.{3}1'", null);
+			break;
+			case "release":
+				$this->db->where("gps_info_io_port REGEXP '^.{3}0'", null);
+			break;			
+			case "opened":
+				$this->db->where("gps_info_io_port REGEXP '^.1'", null);
+			break;			
+			case "closed":
+				$this->db->where("gps_info_io_port REGEXP '^.0'", null);
+			break;			
+		}
+		
+		switch($engine1)
+		{
+			case "on":
+				$this->db->where("gps_info_io_port REGEXP '^.{4}1'", null);
+			break;
+			case "off":
+				$this->db->where("gps_info_io_port REGEXP '^.{4}0'", null);
+			break;
+		}
+		
+		switch($engine2)
+		{
+			case "on":
+				$this->db->where("gps_info_io_port REGEXP '^.{3}1'", null);
+			break;
+			case "off":
+				$this->db->where("gps_info_io_port REGEXP '^.{3}0'", null);
+			break;			
+		}		
+		
+		$this->db->where("gps_info_device", $vehicle->vehicle_device);		
+		$this->db->where("gps_info_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("gps_info_time <=", date("Y-m-d H:i:s", $t2));		
+		
+		$csql = $this->db->_compile_select();
+		
+		$this->db->from($this->gpsmodel->getGPSInfoTable($vehicle->vehicle_type));
+		$total = $this->db->count_all_results();
+
+		$tyesterday = mktime();//-24*3600;
+		$tyesterday = mktime(-7, 59, 59, date('n', $tyesterday), date('j', $tyesterday), date('Y', $tyesterday));		
+
+		if ($this->period1 < $tyesterday)
+		{				
+			$sql = str_replace("SELECT *", "SELECT COUNT(*) total FROM ".$this->db->dbprefix.$this->tblinfohist, $csql);
+
+			$q = $this->db->query($sql);
+			$row = $q->row();
+			$total += $row->total;
+			
+		}
+				
+		return $total;
+	}
+	
+	function searchengine($id, $name, $host, $offset)
+	{	
+		if (isset($_POST['format']))
+		{
+			switch($_POST['format'])
+			{
+				case "csv,":
+					$this->config->config['csv_separator'] = ",";
+				break;
+				case "csv;":
+					$this->config->config['csv_separator'] = ";";
+				break;
+
+			}
+		}
+
+		$limit = (isset($_POST['limit']) && $_POST['limit']) ? $_POST['limit'] : $this->config->item('history_limit_records');
+		
+		$engine1 = isset($_POST['engine1']) ? $_POST['engine1'] : '';
+		$engine2 = isset($_POST['engine2']) ? $_POST['engine2'] : '';
+		
+		$this->db->where("vehicle_device", $name.'@'.$host);
+		$q = $this->db->get("vehicle");
+		$rowvehicle = $q->row();
+
+		$tblhists = $this->config->item("table_hist_info");
+		$this->tblinfohist = $tblhists[strtoupper($rowvehicle->vehicle_type)];
+		
+		$tyesterday = mktime();//-24*3600;
+		$tyesterday = mktime(-7, 59, 59, date('n', $tyesterday), date('j', $tyesterday), date('Y', $tyesterday));		
+				
+		$t1 = mktime(date("G", $this->period1)-7, date("i", $this->period1), date("s", $this->period1), date("n", $this->period1), date("d", $this->period1), date("Y", $this->period1));
+		$t2 = mktime(date("G", $this->period2)-7, date("i", $this->period2), date("s", $this->period2), date("n", $this->period2), date("d", $this->period2), date("Y", $this->period2));
+
+		switch($engine1)
+		{
+			case "on":
+				$this->db->where("gps_info_io_port REGEXP '^.{4}1'", null);
+			break;
+			case "off":
+				$this->db->where("gps_info_io_port REGEXP '^.{4}0'", null);
+			break;
+		}
+		
+		switch($engine2)
+		{
+			case "on":
+				$this->db->where("gps_info_io_port REGEXP '^.{3}1'", null);
+			break;
+			case "off":
+				$this->db->where("gps_info_io_port REGEXP '^.{3}0'", null);
+			break;			
+		}		
+		
+		$this->db->where("gps_info_device", $name.'@'.$host);		
+		$this->db->where("gps_info_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("gps_info_time <=", date("Y-m-d H:i:s", $t2));		
+		$this->db->from($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+		
+		if ($this->period1 >= $tyesterday)
+		{
+			$this->db->order_by("gps_info_time", "ASC");
+			
+			$m_sql = $this->db->_compile_select();
+			$m_sqltotal = str_replace("SELECT *", "SELECT COUNT(*) total", $m_sql);
+			
+			if ($_POST['act'] != "export")
+			{
+				$this->db->limit($limit, $offset);				
+			}
+						
+			$q = $this->db->get();
+		}
+		else
+		{
+			$sql1 = $this->db->_compile_select();
+			$this->db->_reset_select();
+			$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblinfohist, $sql1);
+
+			$sql = "SELECT * FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_info_time ASC ";			
+			$m_sqltotal = "SELECT COUNT(*) total FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_info_time ASC ";
+			
+			if ($_POST['act'] != "export")
+			{
+				$sql = "SELECT * FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_info_time ASC  LIMIT ".$limit." OFFSET ".$offset;
+			}
+						
+			$q = $this->db->query($sql);	
+		}
+		
+		$rows = $q->result();				
+		
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->gps_info_time_t = dbmaketime($rows[$i]->gps_info_time);
+			
+			$ioport = $rows[$i]->gps_info_io_port;
+				
+			$rows[$i]->status2 = ((strlen($ioport) > 3) && ($ioport[3] == 1));
+			$rows[$i]->status1 = ((strlen($ioport) > 4) && ($ioport[4] == 1));
+			$rows[$i]->status = $rows[$i]->status2 || $rows[$i]->status1;			
+		}			
+		
+		$totalengine_on = $this->totalengine($rowvehicle, $t1, $t2, 'on', $engine1, $engine2);
+		$totalengine_off = $this->totalengine($rowvehicle, $t1, $t2, 'off', $engine1, $engine2);
+		
+		$totalengine_hold = $this->totalengine($rowvehicle, $t1, $t2, 'hold', $engine1, $engine2);
+		$totalengine_release = $this->totalengine($rowvehicle, $t1, $t2, 'release', $engine1, $engine2);
+		
+		if ($_POST['act'] == "export")
+		{
+			header("Content-type: application/vnd.ms-excel");
+			header("Content-Disposition: attachment; filename=\"engine_".date("Ymd_His", $this->period1)."_to_".date("Ymd_His", $this->period1).".csv\"");
+			
+			echo $this->lang->line("lengine_1")." \r\n";			
+			echo $this->lang->line("lon").$this->config->item('csv_separator').$totalengine_on."\r\n";
+			echo $this->lang->line("loff").$this->config->item('csv_separator').$totalengine_off."\r\n";
+			
+			echo $this->lang->line("lengine_2")." \r\n";			
+			echo $this->lang->line("lrelease").$this->config->item('csv_separator').$totalengine_hold."\r\n";
+			echo $this->lang->line("lunrelease").$this->config->item('csv_separator').$totalengine_release."\r\n";			
+		
+			echo "no";
+			echo $this->config->item('csv_separator');
+			echo "period";
+			echo $this->config->item('csv_separator');
+			echo "engine";
+			echo $this->config->item('csv_separator');
+			echo "engine 1";
+			echo "\r\n";		
+
+			for($i=0; $i < count($rows); $i++) 
+			{
+				echo $i+1+$offset;
+				echo $this->config->item('csv_separator').date('D M, jS Y H:i:s ', $rows[$i]->gps_info_time_t);
+				echo $this->config->item('csv_separator').(($rows[$i]->status1) ? $this->lang->line('lon') : $this->lang->line('loff'));
+				echo $this->config->item('csv_separator').(($rows[$i]->status2) ? $this->lang->line('lrelease') : $this->lang->line('lunrelease'));
+				echo "\r\n";
+			}
+			
+			return;
+		}
+
+		$q = $this->db->query($m_sqltotal);
+		$row = $q->row();
+		$total = $row->total;
+		
+		// paging
+	
+		$this->load->library('pagination1');
+
+		$config['total_rows'] = $total;
+		$config['uri_segment'] = 6;
+		$config['per_page'] = $limit; 
+		$config['num_links'] = floor($total/$limit);
+
+		$this->pagination1->initialize($config); 
+
+		$params['paging'] = $this->pagination1->create_links();
+				
+		$params['gps_name'] = $name;
+		$params['gps_host'] = $host;			
+		$params['offset'] = $offset;
+		$params['totalengine_on'] = $totalengine_on;
+		$params['totalengine_off'] = $totalengine_off;
+		$params['totalengine_hold'] = $totalengine_hold;
+		$params['totalengine_release'] = $totalengine_release;
+		$params['rows'] = $rows;
+		$html = $this->load->view("trackers/listsearchengine", $params, true);
+		
+		$callback['title'] = $rowvehicle->vehicle_no." ".$rowvehicle->vehicle_name;
+		$callback['error'] = false;
+		$callback['html'] = $html;
+		
+		echo json_encode($callback);			
+		
+	}	
+
+	function searchdoor($id, $name, $host, $offset)
+	{	
+		if (isset($_POST['format']))
+		{
+			switch($_POST['format'])
+			{
+				case "csv,":
+					$this->config->config['csv_separator'] = ",";
+				break;
+				case "csv;":
+					$this->config->config['csv_separator'] = ";";
+				break;
+
+			}
+		}
+		
+		$limit = (isset($_POST['limit']) && $_POST['limit']) ? $_POST['limit'] : $this->config->item('history_limit_records');		
+		$status = isset($_POST['status']) ? $_POST['status'] : '';
+		
+		$this->db->where("vehicle_device", $name.'@'.$host);
+		$q = $this->db->get("vehicle");
+		$rowvehicle = $q->row();
+
+		$tblhists = $this->config->item("table_hist_info");
+		$this->tblinfohist = $tblhists[strtoupper($rowvehicle->vehicle_type)];
+		
+		$tyesterday = mktime();//-24*3600;
+		$tyesterday = mktime(-7, 59, 59, date('n', $tyesterday), date('j', $tyesterday), date('Y', $tyesterday));		
+				
+		$t1 = mktime(date("G", $this->period1)-7, date("i", $this->period1), date("s", $this->period1), date("n", $this->period1), date("d", $this->period1), date("Y", $this->period1));
+		$t2 = mktime(date("G", $this->period2)-7, date("i", $this->period2), date("s", $this->period2), date("n", $this->period2), date("d", $this->period2), date("Y", $this->period2));
+
+		switch($status)
+		{
+			case "opened":
+				$this->db->where("gps_info_io_port REGEXP '^.1'", null);
+			break;
+			case "closed":
+				$this->db->where("gps_info_io_port REGEXP '^.0'", null);
+			break;
+		}
+		
+		$this->db->where("gps_info_device", $name.'@'.$host);		
+		$this->db->where("gps_info_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("gps_info_time <=", date("Y-m-d H:i:s", $t2));		
+		$this->db->from($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+		
+		
+		if ($this->period1 >= $tyesterday)
+		{
+			$this->db->order_by("gps_info_time", "ASC");
+			
+			$m_sql = $this->db->_compile_select();
+			$m_sqltotal = str_replace("SELECT *", "SELECT COUNT(*) total", $m_sql);
+			
+			if ($_POST['act'] != "export")
+			{
+				$this->db->limit($limit, $offset);				
+			}
+						
+			$q = $this->db->get();
+		}
+		else
+		{
+			$sql1 = $this->db->_compile_select();
+			$this->db->_reset_select();
+			$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblinfohist, $sql1);
+
+			$sql = "SELECT * FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_info_time ASC ";			
+			$m_sqltotal = "SELECT COUNT(*) total FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_info_time ASC ";
+			
+			if ($_POST['act'] != "export")
+			{
+				$sql = "SELECT * FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_info_time ASC  LIMIT ".$limit." OFFSET ".$offset;
+			}
+
+			$q = $this->db->query($sql);	
+		}
+		
+		$rows = $q->result();				
+		
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->gps_info_time_t = dbmaketime($rows[$i]->gps_info_time)+7*3600;
+			
+			$ioport = $rows[$i]->gps_info_io_port;
+				
+			$rows[$i]->status1 = ((strlen($ioport) > 1) && ($ioport[1] == 1));
+			$rows[$i]->status = $rows[$i]->status1;			
+		}			
+		
+		$totalengine_opened = $this->totalengine($rowvehicle, $t1, $t2, 'opened', "", "");
+		$totalengine_closed = $this->totalengine($rowvehicle, $t1, $t2, 'closed', "", "");
+		
+		if ($_POST['act'] == "export")
+		{
+			header("Content-type: application/vnd.ms-excel");
+			header("Content-Disposition: attachment; filename=\"door_".date("Ymd_His", $this->period1)."_to_".date("Ymd_His", $this->period1).".csv\"");
+			
+			echo $this->lang->line("lengine_1")." \r\n";			
+			echo $this->lang->line("lopened").$this->config->item('csv_separator').$totalengine_opened."\r\n";
+			echo $this->lang->line("lclosed").$this->config->item('csv_separator').$totalengine_closed."\r\n";
+			
+			echo "no";
+			echo $this->config->item('csv_separator');
+			echo "period";
+			echo $this->config->item('csv_separator');
+			echo "status";
+			echo "\r\n";		
+		
+			for($i=0; $i < count($rows); $i++) 
+			{
+				echo $i+1+$offset;
+				echo $this->config->item('csv_separator').date('D M, jS Y H:i:s ', $rows[$i]->gps_info_time_t);
+				echo $this->config->item('csv_separator').(($rows[$i]->status1) ? $this->lang->line('lopened') : $this->lang->line('lclosed'));
+				echo "\r\n";
+			}
+			
+			return;
+		}
+
+		$q = $this->db->query($m_sqltotal);
+		$row = $q->row();
+		$total = $row->total;
+		
+		// paging
+	
+		$this->load->library('pagination1');
+
+		$config['total_rows'] = $total;
+		$config['uri_segment'] = 6;
+		$config['per_page'] = $limit; 
+		$config['num_links'] = floor($total/$limit);
+
+		$this->pagination1->initialize($config); 
+
+		$params['paging'] = $this->pagination1->create_links();
+				
+		$params['gps_name'] = $name;
+		$params['gps_host'] = $host;			
+		$params['offset'] = $offset;
+		$params['totalengine_opened'] = $totalengine_opened;
+		$params['totalengine_closed'] = $totalengine_closed;
+		$params['rows'] = $rows;
+		$html = $this->load->view("trackers/listsearchdoor", $params, true);
+		
+		$callback['title'] = $rowvehicle->vehicle_no." ".$rowvehicle->vehicle_name;
+		$callback['error'] = false;
+		$callback['html'] = $html;
+		
+		echo json_encode($callback);			
+		
+	}	
+	
+	function searchparkingtime($id, $name, $host, $offset)
+	{
+		if (isset($_POST['format']))
+		{
+			switch($_POST['format'])
+			{
+				case "csv,":
+					$this->config->config['csv_separator'] = ",";
+				break;
+				case "csv;":
+					$this->config->config['csv_separator'] = ";";
+				break;
+
+			}
+		}
+
+		$limit = (isset($_POST['limit']) && $_POST['limit']) ? $_POST['limit'] : $this->config->item('history_limit_records');
+		
+		$this->db->where("vehicle_device", $name.'@'.$host);
+		$q = $this->db->get("vehicle");
+		$rowvehicle = $q->row();
+				
+		$tblhists = $this->config->item("table_hist");
+		$this->tblhist = $tblhists[strtoupper($rowvehicle->vehicle_type)];
+				
+		$tyesterday = mktime();//-24*3600;
+		$tyesterday = mktime(-7, 59, 59, date('n', $tyesterday), date('j', $tyesterday), date('Y', $tyesterday));		
+				
+		$t1 = mktime(date("G", $this->period1)-7, date("i", $this->period1), date("s", $this->period1), date("n", $this->period1), date("d", $this->period1), date("Y", $this->period1));
+		$t2 = mktime(date("G", $this->period2)-7, date("i", $this->period2), date("s", $this->period2), date("n", $this->period2), date("d", $this->period2), date("Y", $this->period2));
+		
+		$this->db->where("gps_name", $name);
+		$this->db->where("gps_host", $host);
+		$this->db->where("gps_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("gps_time <=", date("Y-m-d H:i:s", $t2));		
+		
+		if ($this->period1 >= $tyesterday)
+		{
+			// hari ini
+			
+			$this->db->order_by("gps_time", "ASC");
+			$q = $this->db->get($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type));
+		}
+		else
+		{	
+			$this->db->from($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type));
+			$sql1 = $this->db->_compile_select();
+			$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblhist, $sql1);
+			
+			$m_sql = "FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_time ASC ";
+			$sql = "SELECT * ".$m_sql;
+
+			$q = $this->db->query($sql);
+		}
+				
+		$rows = $q->result();
+		
+		$lastlng = "";
+		$lastlat = "";
+		
+		$vehicles = array();
+		$j = -1;
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i] = $this->gpsmodel->GetLastInfo("", "", false, $rows[$i], 0, $rowvehicle->vehicle_type);
+			
+			$km = $rows[$i]->gps_speed*1.852;
+			
+			if ($km > 1)
+			{
+				if ($j == -1) continue;
+				
+				$idx = count($vehicles)-1;
+				
+				$vehicles[$idx]->parkingtime = $rows[$i]->gps_timestamp - $rows[$j]->gps_timestamp;
+				$vehicles[$idx]->parkingtime_fmt = sprintf("%d:%02d:%02d", floor($vehicles[$idx]->parkingtime/3600), floor(($vehicles[$idx]->parkingtime%3600)/60), floor(($vehicles[$idx]->parkingtime%3600)%60));
+				
+				$j = -1;
+				continue;	
+			}
+			
+			if ($j != -1) continue;
+			
+			$j = $i;
+			$rows[$i]->parkingtime = 0;
+			$vehicles[] = $rows[$i];
+		}
+		
+		if ($j != -1)
+		{
+			$idx = count($vehicles)-1;
+			$vehicles[$idx]->parkingtime = $rows[count($rows)-1]->gps_timestamp - $rows[$j]->gps_timestamp;
+			$vehicles[$idx]->parkingtime_fmt = sprintf("%d:%02d:%02d", floor($vehicles[$idx]->parkingtime/3600), floor(($vehicles[$idx]->parkingtime%3600)/60), floor(($vehicles[$idx]->parkingtime%3600)%60));
+		}
+		
+		$max = $_POST['hparkingtime']*3600 + $_POST['mparkingtime']*60;;
+				
+		$temp = array();		
+		for($i=0; $i < count($vehicles); $i++)
+		{
+			if ($vehicles[$i]->parkingtime < $max) continue;
+									
+			$temp[] = $vehicles[$i];
+		}		
+		
+		if ($_POST['act'] == "export")
+		{
+			header("Content-type: application/vnd.ms-excel");
+			header("Content-Disposition: attachment; filename=\"parkingtime_".date("Ymd_His", $this->period1)."_to_".date("Ymd_His", $this->period1).".csv\"");
+			
+			echo "Parking time: ".$_POST['hparkingtime']." h ".$_POST['mparkingtime']." m\r\n";
+			echo "Periode: ".date("d/m/Y H:i:s", $this->period1)." to ".date("d/m/Y H:i:s", $this->period2)."\r\n\r\n";
+			
+			echo "no";
+			echo $this->config->item('csv_separator');
+			echo "date";
+			echo $this->config->item('csv_separator');
+			echo "time";
+			echo $this->config->item('csv_separator');
+			echo "position";
+			echo $this->config->item('csv_separator');
+			echo "coordinate";
+			echo $this->config->item('csv_separator');
+			echo "parkingtime";
+			echo "\r\n";		
+		}
+		else
+		{					
+			$total = count($temp);
+			$vehicles = array_slice($temp, $offset, $limit);
+		}
+		
+		for($i=0; $i < count($vehicles); $i++)
+		{
+			$vehicles[$i]->georeverse = $this->gpsmodel->GeoReverse($vehicles[$i]->gps_latitude_real_fmt, $vehicles[$i]->gps_longitude_real_fmt);
+			
+			if ($_POST['act'] == "export")
+			{
+				echo $i+1;
+				echo $this->config->item('csv_separator').date("d/m/Y", $vehicles[$i]->gps_timestamp);
+				echo $this->config->item('csv_separator').date("H:i:s", $vehicles[$i]->gps_timestamp);
+				echo $this->config->item('csv_separator').str_replace($this->config->item('csv_separator'), " ", $vehicles[$i]->georeverse->display_name);
+				echo $this->config->item('csv_separator')."(".$vehicles[$i]->gps_longitude_real_fmt." ".$vehicles[$i]->gps_latitude_real_fmt.")";
+				echo $this->config->item('csv_separator').$vehicles[$i]->parkingtime_fmt;
+				echo "\r\n";
+			}			
+		}
+		
+		if ($_POST['act'] == "export")
+		{
+			return;
+		}		
+		
+		// paging
+	
+		$this->load->library('pagination1');
+
+		$config['total_rows'] = $total;
+		$config['uri_segment'] = 6;
+		$config['per_page'] = $limit; 
+		$config['num_links'] = floor($total/$limit);
+
+		$this->pagination1->initialize($config); 
+
+		$params['paging'] = $this->pagination1->create_links();
+				
+		$params['gps_name'] = $name;
+		$params['gps_host'] = $host;			
+		$params['offset'] = $offset;
+		$params['data'] = $vehicles;
+		$params['id'] = $id;
+		$html = $this->load->view("trackers/listsearch", $params, true);
+		
+		unset($callback);
+		
+		$callback['title'] = $rowvehicle->vehicle_no." ".$rowvehicle->vehicle_name;
+		$callback['error'] = false;
+		$callback['html'] = $html;
+		
+		echo json_encode($callback);			
+		
+	}
+	
+	function searchoverspeed($id, $name, $host, $offset)
+	{
+		if (isset($_POST['format']))
+		{
+			switch($_POST['format'])
+			{
+				case "csv,":
+					$this->config->config['csv_separator'] = ",";
+				break;
+				case "csv;":
+					$this->config->config['csv_separator'] = ";";
+				break;
+
+			}
+		}
+
+		$limit = (isset($_POST['limit']) && $_POST['limit']) ? $_POST['limit'] : $this->config->item('history_limit_records');
+		
+		// tentukan tanggal 
+		
+		$this->db->where("vehicle_device", $name.'@'.$host);
+		$q = $this->db->get("vehicle");
+		$rowvehicle = $q->row();		
+
+		$tblhists = $this->config->item("table_hist");
+		$this->tblhist = $tblhists[strtoupper($rowvehicle->vehicle_type)];
+		
+		$tyesterday = mktime();//-24*3600;
+		$tyesterday = mktime(-7, 59, 59, date('n', $tyesterday), date('j', $tyesterday), date('Y', $tyesterday));		
+		
+		$t1 = mktime(date("G", $this->period1)-7, date("i", $this->period1), date("s", $this->period1), date("n", $this->period1), date("d", $this->period1), date("Y", $this->period1));
+		$t2 = mktime(date("G", $this->period2)-7, date("i", $this->period2), date("s", $this->period2), date("n", $this->period2), date("d", $this->period2), date("Y", $this->period2));				
+				
+		$this->db->where("gps_name", $name);
+		$this->db->where("gps_host", $host);
+		$this->db->where("gps_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("gps_time <=", date("Y-m-d H:i:s", $t2));		
+		$this->db->where("gps_speed >=", $_POST['speedlimit']/1.852);		
+		
+		if ($_POST['act'] == "export")
+		{						
+			if ($this->period1 >= $tyesterday)
+			{
+				// hari ini
+				
+				$this->db->order_by("gps_time", "DESC");
+				$q = $this->db->get($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type), $limit, $offset);
+			}
+			else
+			{	
+				$this->db->from($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type));
+				$sql1 = $this->db->_compile_select();
+				$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblhist, $sql1);
+				
+				$m_sql = "FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_time DESC ";
+				$sql = "SELECT * ".$m_sql;
+
+				$q = $this->db->query($sql);
+			}			
+			
+			header("Content-type: application/vnd.ms-excel");
+			header("Content-Disposition: attachment; filename=\"overspeed_".date("Ymd_His", $this->period1)."_to_".date("Ymd_His", $this->period1).".csv\"");
+			
+			echo "Speed limit: ".$_POST['speedlimit']." kph\r\n";
+			echo "Periode: ".date("d/m/Y H:i:s", $this->period1)." to ".date("d/m/Y H:i:s", $this->period2)."\r\n\r\n";			
+			
+			echo "no";
+			echo $this->config->item('csv_separator');
+			echo "date";
+			echo $this->config->item('csv_separator');
+			echo "time";
+			echo $this->config->item('csv_separator');
+			echo "position";
+			echo $this->config->item('csv_separator');
+			echo "coordinate";
+			echo $this->config->item('csv_separator');
+			echo "speed";
+			echo "\r\n";			
+		}
+		else
+		{
+			if ($this->period1 >= $tyesterday)
+			{
+				// hari ini
+				
+				$this->db->order_by("gps_time", "DESC");
+				$q = $this->db->get($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type), $limit, $offset);
+			}
+			else
+			{					
+				$this->db->from($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type));
+				$sql1 = $this->db->_compile_select();
+				$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblhist, $sql1);
+				
+				$m_sql = "FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_time DESC ";
+				$sql = "SELECT * ".$m_sql." LIMIT ".$limit." OFFSET ".$offset;
+
+				$q = $this->db->query($sql);
+			}			
+		}
+		
+		$rows = $q->result();
+		
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i] = $this->gpsmodel->GetLastInfo("", "", false, $rows[$i], 0, $rowvehicle->vehicle_type);
+			
+			if (isset($positions[$rows[$i]->gps_longitude_real_fmt][$rows[$i]->gps_longitude_real_fmt]))
+			{
+				$rows[$i]->georeverse = $positions[$rows[$i]->gps_longitude_real_fmt][$rows[$i]->gps_longitude_real_fmt];
+			}
+			else
+			{
+				$rows[$i]->georeverse = $this->gpsmodel->GeoReverse($rows[$i]->gps_latitude_real_fmt, $rows[$i]->gps_longitude_real_fmt);
+			}
+			
+			$positions[$rows[$i]->gps_longitude_real_fmt][$rows[$i]->gps_longitude_real_fmt] = $rows[$i]->georeverse;
+			
+			if ($_POST['act'] == "export")
+			{
+				echo $i+1;
+				echo $this->config->item('csv_separator').date("d/m/Y", $rows[$i]->gps_timestamp);
+				echo $this->config->item('csv_separator').date("H:i:s", $rows[$i]->gps_timestamp);
+				echo $this->config->item('csv_separator').str_replace($this->config->item('csv_separator'), " ", $rows[$i]->georeverse->display_name);
+				echo $this->config->item('csv_separator')."(".$rows[$i]->gps_longitude_real_fmt." ".$rows[$i]->gps_latitude_real_fmt.")";
+				echo $this->config->item('csv_separator').$rows[$i]->gps_speed_fmt;
+				echo "\r\n";
+			}			
+		}	
+		
+		if ($_POST['act'] == "export")
+		{
+			return;
+		}			
+		
+		$this->db->where("gps_name", $name);
+		$this->db->where("gps_host", $host);
+		$this->db->where("gps_speed >=", $_POST['speedlimit']/1.852);		
+		$this->db->where("gps_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("gps_time <=", date("Y-m-d H:i:s", $t2));		
+		
+		if ($this->period1 >= $tyesterday)
+		{
+			// hari ini
+			$total = $this->db->count_all_results($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type));
+		}
+		else
+		{	
+			$sql = "SELECT COUNT(*) total ".$m_sql;
+			$q = $this->db->query($sql);
+			
+			$row = $q->row();
+			$total = $row->total;
+		}			
+				
+
+		// paging
+		
+		$this->load->library('pagination1');
+
+		$config['total_rows'] = $total;
+		$config['uri_segment'] = 6;
+		$config['per_page'] = $limit; 
+		$config['num_links'] = floor($total/$limit);
+
+		$this->pagination1->initialize($config); 
+
+		$params['paging'] = $this->pagination1->create_links();		
+		$params['gps_name'] = $name;
+		$params['gps_host'] = $host;
+		$params['offset'] = $offset;
+		$params['data'] = $rows;
+		$params['id'] = $id;
+		$html = $this->load->view("trackers/listsearch", $params, true);
+		
+		$callback['title'] = $rowvehicle->vehicle_no." ".$rowvehicle->vehicle_name;
+		$callback['error'] = false;
+		$callback['html'] = $html;
+			
+		echo json_encode($callback);							
+	}
+	
+	function validate_overspeed()
+	{
+		$speedlimit = trim($_POST['speedlimit']);
+		
+		if (strlen($speedlimit) == 0)
+		{
+			$callback['error'] = true;
+			$callback['message'] = $this->lang->line("lempty_speed_limit");
+			
+			echo json_encode($callback);			
+			return false;
+		}
+		
+		if (! is_numeric($speedlimit))
+		{
+			$callback['error'] = true;
+			$callback['message'] = $this->lang->line("linvalid_speed_limit");
+			
+			echo json_encode($callback);			
+			return false;
+		}
+		
+		$st1 = $_POST['period1']." ".sprintf("%02d", $_POST['hperiod1']).":".sprintf("%02d", $_POST['mperiod1']).":".sprintf("%02d", $_POST['speriod1']);
+		$t1 = formmaketime($st1);
+		
+		if (date("d/m/Y H:i:s", $t1) != $st1)
+		{
+			$callback['error'] = true;
+			$callback['message'] = $this->lang->line("linvalid_period_start");
+			
+			echo json_encode($callback);			
+			return false;
+		}
+		
+		$this->period1 = $t1;
+		
+		$st2 = $_POST['period2']." ".sprintf("%02d", $_POST['hperiod2']).":".sprintf("%02d", $_POST['mperiod2']).":".sprintf("%02d", $_POST['speriod2']);
+		$t2 = formmaketime($st2);
+		
+		if (date("d/m/Y H:i:s", $t2) != $st2)
+		{
+			$callback['error'] = true;
+			$callback['message'] = $this->lang->line("linvalid_period_end");
+			
+			echo json_encode($callback);			
+			return false;
+		}		
+		
+		$this->period2 = $t2;
+		
+		$maxhist = $this->configmodel->getMaxHistory();
+		$maxtime = mktime(0, 0, 0, date("n", $t1)+$maxhist, date('j', $t1), date('Y', $t1));
+		
+		if ($maxtime < $t2)
+		{
+			$callback['error'] = true;
+			$callback['message'] = sprintf($this->lang->line("linvalid_max_history"), $maxhist);
+			
+			echo json_encode($callback);			
+			return false;			
+		}
+
+		return true;
+	}
+		
+	function validate_history()
+	{		
+		$st1 = $_POST['period1']." ".sprintf("%02d", $_POST['hperiod1']).":".sprintf("%02d", $_POST['mperiod1']).":".sprintf("%02d", $_POST['speriod1']);
+		$t1 = formmaketime($st1);
+		
+		if (date("d/m/Y H:i:s", $t1) != $st1)
+		{
+			$callback['error'] = true;
+			$callback['message'] = $this->lang->line("linvalid_period_start");
+			
+			echo json_encode($callback);			
+			return false;
+		}
+		
+		$this->period1 = $t1;
+		
+		$st2 = $_POST['period2']." ".sprintf("%02d", $_POST['hperiod2']).":".sprintf("%02d", $_POST['mperiod2']).":".sprintf("%02d", $_POST['speriod2']);
+		$t2 = formmaketime($st2);
+		
+		if (date("d/m/Y H:i:s", $t2) != $st2)
+		{
+			$callback['error'] = true;
+			$callback['message'] = $this->lang->line("linvalid_period_end");
+			
+			echo json_encode($callback);			
+			return false;
+		}		
+		
+		$this->period2 = $t2;
+
+		$maxhist = $this->configmodel->getMaxHistory();
+		$maxtime = mktime(0, 0, 0, date("n", $t1)+$maxhist, date('j', $t1), date('Y', $t1));
+		
+		if ($maxtime < $t2)
+		{
+			$callback['error'] = true;
+			$callback['message'] = sprintf($this->lang->line("linvalid_max_history"), $maxhist);
+			
+			echo json_encode($callback);			
+			return false;			
+		}
+
+		return true;
+	}	
+		
+	function validate_parkingtime()
+	{
+		$hparkingtime = trim($_POST['hparkingtime']);
+		$mparkingtime = trim($_POST['mparkingtime']);
+		
+		if ((strlen($hparkingtime) > 0) &&  (! is_numeric($hparkingtime)))
+		{
+			$callback['error'] = true;
+			$callback['message'] = $this->lang->line("linvalid_parkingtime_hour");
+			
+			echo json_encode($callback);			
+			return false;
+		}
+
+		if ((strlen($mparkingtime) > 0) &&  (! is_numeric($mparkingtime)))
+		{
+			$callback['error'] = true;
+			$callback['message'] = $this->lang->line("linvalid_parkingtime_minute");
+			
+			echo json_encode($callback);			
+			return false;
+		}
+				
+		$st1 = $_POST['period1']." ".sprintf("%02d", $_POST['hperiod1']).":".sprintf("%02d", $_POST['mperiod1']).":".sprintf("%02d", $_POST['speriod1']);
+		$t1 = formmaketime($st1);
+		
+		if (date("d/m/Y H:i:s", $t1) != $st1)
+		{
+			$callback['error'] = true;
+			$callback['message'] = $this->lang->line("linvalid_period_start");
+			
+			echo json_encode($callback);			
+			return false;
+		}
+		
+		$this->period1 = $t1;
+		
+		$st2 = $_POST['period2']." ".sprintf("%02d", $_POST['hperiod2']).":".sprintf("%02d", $_POST['mperiod2']).":".sprintf("%02d", $_POST['speriod2']);
+		$t2 = formmaketime($st2);
+		
+		if (date("d/m/Y H:i:s", $t2) != $st2)
+		{
+			$callback['error'] = true;
+			$callback['message'] = $this->lang->line("linvalid_period_end");
+			
+			echo json_encode($callback);			
+			return false;
+		}		
+		
+		$this->period2 = $t2;
+
+		$maxhist = $this->configmodel->getMaxHistory();
+		$maxtime = mktime(0, 0, 0, date("n", $t1)+$maxhist, date('j', $t1), date('Y', $t1));
+		
+		if ($maxtime < $t2)
+		{
+			$callback['error'] = true;
+			$callback['message'] = sprintf($this->lang->line("linvalid_max_history"), $maxhist);
+			
+			echo json_encode($callback);			
+			return false;			
+		}
+
+		return true;
+	}	
+	
+	function overspeed($name, $host)
+	{
+		if (! isset($this->sess->user_type))
+		{
+			redirect(base_url());
+		}
+		
+		$_POST['speedlimit'] = isset($_POST['speedlimit']) ? $_POST['speedlimit'] : 80;
+		
+		$_POST['period1'] = isset($_POST['period1']) ? $_POST['period1'] : date("d/m/Y");
+		$_POST['period2'] = isset($_POST['period2']) ? $_POST['period2'] : date("d/m/Y");
+		
+		$_POST['hperiod1'] = isset($_POST['hperiod1']) ? $_POST['hperiod1'] : 0;
+		$_POST['mperiod1'] = isset($_POST['mperiod1']) ? $_POST['mperiod1'] : 0;
+		$_POST['speriod1'] = isset($_POST['speriod1']) ? $_POST['speriod1'] : 0;
+		
+		$_POST['hperiod2'] = isset($_POST['hperiod2']) ? $_POST['hperiod2'] : 23;
+		$_POST['mperiod2'] = isset($_POST['mperiod2']) ? $_POST['mperiod2'] : 59;
+		$_POST['speriod2'] = isset($_POST['speriod2']) ? $_POST['speriod2'] : 59;
+	
+		//$this->db->where("vehicle_device", $name.'@'.$host);
+		$this->db->select("vehicle.*, user_name");		
+		$this->db->order_by("user_name", "asc");		
+		$this->db->order_by("vehicle_name", "asc");
+		$this->db->order_by("vehicle_no", "asc");
+		$this->db->where("vehicle_status <>", 3);
+
+		if ($this->sess->user_type == 2)
+		{
+			if ($this->sess->user_company)
+			{
+				$this->db->where_in("vehicle_id", $this->vehicleids);
+			}
+			else
+			{
+				$this->db->where("vehicle_user_id", $this->sess->user_id);
+			}
+
+			$this->db->where("vehicle_active_date2 >=", date("Ymd"));
+		}
+		else
+		if ($this->sess->user_type == 3)
+		{
+			$this->db->where("user_agent", $this->sess->user_agent);
+		}
+	
+		$this->db->join("user", "vehicle_user_id = user_id", "left outer");
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			redirect(base_url());
+		}
+
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->vehicle_device1 = str_replace("@", "/", $rows[$i]->vehicle_device);
+			if ($rows[$i]->vehicle_device == sprintf("%s@%s", $name, $host))
+			{
+				$row = $rows[$i];
+			}
+		}
+
+		if (! isset($row))
+		{
+			redirect(base_url());
+		}		
+				
+		$this->params['title'] = $this->lang->line('loverspeed_report').' '.$row->vehicle_name.'-'.$row->vehicle_no.' ';
+		$this->params["vehicle"] = $row;
+		$this->params["vehicles"] = $rows;
+		$this->params["content"] = $this->load->view('trackers/overspeed', $this->params, true);		
+		$this->load->view("templatesess", $this->params);
+	}
+	
+	function parkingtime($name, $host)
+	{
+		if (! isset($this->sess->user_type))
+		{
+			redirect(base_url());
+		}
+		
+		$_POST['hparkingtime'] = isset($_POST['hparkingtime']) ? $_POST['hparkingtime'] : "";
+		$_POST['mparkingtime'] = isset($_POST['mparkingtime']) ? $_POST['mparkingtime'] : 30;
+		
+		$_POST['period1'] = isset($_POST['period1']) ? $_POST['period1'] : date("d/m/Y");
+		$_POST['period2'] = isset($_POST['period2']) ? $_POST['period2'] : date("d/m/Y");
+		
+		$_POST['hperiod1'] = isset($_POST['hperiod1']) ? $_POST['hperiod1'] : 0;
+		$_POST['mperiod1'] = isset($_POST['mperiod1']) ? $_POST['mperiod1'] : 0;
+		$_POST['speriod1'] = isset($_POST['speriod1']) ? $_POST['speriod1'] : 0;
+		
+		$_POST['hperiod2'] = isset($_POST['hperiod2']) ? $_POST['hperiod2'] : 23;
+		$_POST['mperiod2'] = isset($_POST['mperiod2']) ? $_POST['mperiod2'] : 59;
+		$_POST['speriod2'] = isset($_POST['speriod2']) ? $_POST['speriod2'] : 59;
+		
+		//$this->db->where("vehicle_device", $name.'@'.$host);
+
+		$this->db->select("vehicle.*, user_name");		
+		$this->db->order_by("user_name", "asc");
+		$this->db->order_by("vehicle_name", "asc");
+		$this->db->order_by("vehicle_no", "asc");		
+		$this->db->where("vehicle_status <>", 3);
+		
+		if ($this->sess->user_type == 2)
+		{
+			if ($this->sess->user_company)
+			{
+				$this->db->where_in("vehicle_id", $this->vehicleids);
+			}
+			else
+			{
+				$this->db->where("vehicle_user_id", $this->sess->user_id);
+			}
+
+			$this->db->where("vehicle_active_date2 >=", date("Ymd"));
+		}
+		else
+		if ($this->sess->user_type == 3)
+		{
+			$this->db->where("user_agent", $this->sess->user_agent);			
+		}
+
+		$this->db->join("user", "vehicle_user_id = user_id", "left outer");
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			redirect(base_url());
+		}
+		
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->vehicle_device1 = str_replace("@", "/", $rows[$i]->vehicle_device);
+			if ($rows[$i]->vehicle_device == sprintf("%s@%s", $name, $host))
+			{
+				$row = $rows[$i];
+			}
+		}
+
+		if (! isset($row))
+		{
+			redirect(base_url());
+		}		
+		
+		$this->params['title'] = $this->lang->line('lparking_time_report').' '.$row->vehicle_name.'-'.$row->vehicle_no.' ';
+		$this->params["vehicle"] = $row;
+		$this->params["vehicles"] = $rows;
+		$this->params["content"] = $this->load->view('trackers/overspeed', $this->params, true);		
+		$this->load->view("templatesess", $this->params);
+	}	
+
+	function workhour($name, $host)
+	{
+		if (! isset($this->sess->user_type))
+		{
+			redirect(base_url());
+		}
+		
+		$_POST['period1'] = isset($_POST['period1']) ? $_POST['period1'] : date("d/m/Y");
+		$_POST['period2'] = isset($_POST['period2']) ? $_POST['period2'] : date("d/m/Y");
+		
+		$_POST['hperiod1'] = isset($_POST['hperiod1']) ? $_POST['hperiod1'] : 0;
+		$_POST['mperiod1'] = isset($_POST['mperiod1']) ? $_POST['mperiod1'] : 0;
+		$_POST['speriod1'] = isset($_POST['speriod1']) ? $_POST['speriod1'] : 0;
+		
+		$_POST['hperiod2'] = isset($_POST['hperiod2']) ? $_POST['hperiod2'] : 23;
+		$_POST['mperiod2'] = isset($_POST['mperiod2']) ? $_POST['mperiod2'] : 59;
+		$_POST['speriod2'] = isset($_POST['speriod2']) ? $_POST['speriod2'] : 59;
+		
+		$this->db->select("vehicle.*, user_name");		
+		$this->db->order_by("user_name", "asc");
+		$this->db->order_by("vehicle_name", "asc");
+		$this->db->order_by("vehicle_no", "asc");
+		//$this->db->where("vehicle_device", $name.'@'.$host);
+		$this->db->where("vehicle_status <>", 3);
+
+		if ($this->sess->user_type == 2)
+		{
+			if ($this->sess->user_company)
+			{
+				$this->db->where_in("vehicle_id", $this->vehicleids);
+			}
+			else
+			{
+				$this->db->where("vehicle_user_id", $this->sess->user_id);
+			}
+
+			$this->db->where("vehicle_active_date2 >=", date("Ymd"));
+		}
+		else
+		if ($this->sess->user_type == 3)
+		{
+			$this->db->where("user_agent", $this->sess->user_agent);			
+		}
+
+		$this->db->join("user", "vehicle_user_id = user_id", "left outer");
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			redirect(base_url());
+		}
+		
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->vehicle_device1 = str_replace("@", "/", $rows[$i]->vehicle_device);
+			if ($rows[$i]->vehicle_device == sprintf("%s@%s", $name, $host))
+			{
+				$row = $rows[$i];
+			}
+		}
+
+		if (! isset($row))
+		{
+			redirect(base_url());
+		}
+	
+		$this->params['title'] = $this->lang->line('lworkhour_report').' '.$row->vehicle_name.'-'.$row->vehicle_no.' ';	
+		$this->params["vehicle"] = $row;
+		$this->params["vehicles"] = $rows;
+		$this->params["content"] = $this->load->view('trackers/overspeed', $this->params, true);		
+		$this->load->view("templatesess", $this->params);
+	}
+	
+	function door($name, $host)
+	{
+		if (! isset($this->sess->user_type))
+		{
+			redirect(base_url());
+		}
+		
+		$_POST['period1'] = isset($_POST['period1']) ? $_POST['period1'] : date("d/m/Y");
+		$_POST['period2'] = isset($_POST['period2']) ? $_POST['period2'] : date("d/m/Y");
+		
+		$_POST['hperiod1'] = isset($_POST['hperiod1']) ? $_POST['hperiod1'] : 0;
+		$_POST['mperiod1'] = isset($_POST['mperiod1']) ? $_POST['mperiod1'] : 0;
+		$_POST['speriod1'] = isset($_POST['speriod1']) ? $_POST['speriod1'] : 0;
+		
+		$_POST['hperiod2'] = isset($_POST['hperiod2']) ? $_POST['hperiod2'] : 23;
+		$_POST['mperiod2'] = isset($_POST['mperiod2']) ? $_POST['mperiod2'] : 59;
+		$_POST['speriod2'] = isset($_POST['speriod2']) ? $_POST['speriod2'] : 59;
+		
+		$this->db->select("vehicle.*, user_name");		
+		$this->db->order_by("user_name", "asc");
+		$this->db->order_by("vehicle_name", "asc");
+		$this->db->order_by("vehicle_no", "asc");
+		//$this->db->where("vehicle_device", $name.'@'.$host);
+		$this->db->where("vehicle_status <>", 3);
+		if ($this->sess->user_type == 2)
+		{
+			if ($this->sess->user_company)
+			{
+				$this->db->where_in("vehicle_id", $this->vehicleids);
+			}
+			else
+			{
+				$this->db->where("vehicle_user_id", $this->sess->user_id);
+			}
+
+			$this->db->where("vehicle_active_date2 >=", date("Ymd"));
+		}
+		else
+		if ($this->sess->user_type == 3)
+		{
+			$this->db->where("user_agent", $this->sess->user_agent);			
+		}
+
+		$this->db->join("user", "vehicle_user_id = user_id", "left outer");
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			redirect(base_url());
+		}
+		
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->vehicle_device1 = str_replace("@", "/", $rows[$i]->vehicle_device);
+			if ($rows[$i]->vehicle_device == sprintf("%s@%s", $name, $host))
+			{
+				$row = $rows[$i];
+			}
+		}
+
+		if (! isset($row))
+		{
+			redirect(base_url());
+		}		
+		
+		$this->params['title'] = $this->lang->line('ldoor_status').' '.$row->vehicle_name.'-'.$row->vehicle_no.' ';	
+		$this->params["vehicle"] = $row;
+		$this->params["vehicles"] = $rows;
+		$this->params["content"] = $this->load->view('trackers/overspeed', $this->params, true);		
+		$this->load->view("templatesess", $this->params);
+	}
+	
+	function alarm($name, $host)
+	{
+		if (! isset($this->sess->user_type))
+		{
+			redirect(base_url());
+		}
+		
+		$_POST['period1'] = isset($_POST['period1']) ? $_POST['period1'] : date("d/m/Y");
+		$_POST['period2'] = isset($_POST['period2']) ? $_POST['period2'] : date("d/m/Y");
+		
+		$_POST['hperiod1'] = isset($_POST['hperiod1']) ? $_POST['hperiod1'] : 0;
+		$_POST['mperiod1'] = isset($_POST['mperiod1']) ? $_POST['mperiod1'] : 0;
+		$_POST['speriod1'] = isset($_POST['speriod1']) ? $_POST['speriod1'] : 0;
+		
+		$_POST['hperiod2'] = isset($_POST['hperiod2']) ? $_POST['hperiod2'] : 23;
+		$_POST['mperiod2'] = isset($_POST['mperiod2']) ? $_POST['mperiod2'] : 59;
+		$_POST['speriod2'] = isset($_POST['speriod2']) ? $_POST['speriod2'] : 59;
+
+		$this->db->select("vehicle.*, user_name");		
+		$this->db->order_by("user_name", "asc");
+		$this->db->order_by("vehicle_name", "asc");
+		$this->db->order_by("vehicle_no", "asc");
+		$this->db->where("vehicle_status <>", 3);
+		//$this->db->where("vehicle_device", $name.'@'.$host);
+		$this->db->where("vehicle_status <>", 3);
+
+		if ($this->sess->user_type == 2)
+		{
+			if ($this->sess->user_company)
+			{
+				$this->db->where_in("vehicle_id", $this->vehicleids);
+			}
+			else
+			{
+				$this->db->where("vehicle_user_id", $this->sess->user_id);
+			}
+
+			$this->db->where("vehicle_active_date2 >=", date("Ymd"));
+		}
+		else
+		if ($this->sess->user_type == 3)
+		{
+			$this->db->where("user_agent", $this->sess->user_agent);		
+		}
+
+		$this->db->join("user", "vehicle_user_id = user_id", "left outer");
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			redirect(base_url());
+		}
+		
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->vehicle_device1 = str_replace("@", "/", $rows[$i]->vehicle_device);
+			if ($rows[$i]->vehicle_device == sprintf("%s@%s", $name, $host))
+			{
+				$row = $rows[$i];
+			}
+		}
+
+		if (! isset($row))
+		{
+			redirect(base_url());
+		}		
+		
+		$this->params['title'] = $this->lang->line('lalarm').' '.$row->vehicle_name.'-'.$row->vehicle_no.' ';	
+		$this->params["vehicle"] = $row;
+		$this->params["vehicles"] = $rows;
+		$this->params["content"] = $this->load->view('trackers/overspeed', $this->params, true);		
+		$this->load->view("templatesess", $this->params);
+	}
+
+	function engine($name, $host)
+	{
+		if (! isset($this->sess->user_type))
+		{
+			redirect(base_url());
+		}
+		
+		$_POST['period1'] = isset($_POST['period1']) ? $_POST['period1'] : date("d/m/Y");
+		$_POST['period2'] = isset($_POST['period2']) ? $_POST['period2'] : date("d/m/Y");
+		
+		$_POST['hperiod1'] = isset($_POST['hperiod1']) ? $_POST['hperiod1'] : 0;
+		$_POST['mperiod1'] = isset($_POST['mperiod1']) ? $_POST['mperiod1'] : 0;
+		$_POST['speriod1'] = isset($_POST['speriod1']) ? $_POST['speriod1'] : 0;
+		
+		$_POST['hperiod2'] = isset($_POST['hperiod2']) ? $_POST['hperiod2'] : 23;
+		$_POST['mperiod2'] = isset($_POST['mperiod2']) ? $_POST['mperiod2'] : 59;
+		$_POST['speriod2'] = isset($_POST['speriod2']) ? $_POST['speriod2'] : 59;
+	
+		$this->db->select("vehicle.*, user_name");		
+		$this->db->order_by("user_name", "asc");
+		$this->db->order_by("vehicle_name", "asc");
+		$this->db->order_by("vehicle_no", "asc");	
+		//$this->db->where("vehicle_device", $name.'@'.$host);
+		$this->db->where("vehicle_status <>", 3);
+
+		if ($this->sess->user_type == 2)
+		{
+			if ($this->sess->user_company)
+			{
+				$this->db->where_in("vehicle_id", $this->vehicleids);
+			}
+			else
+			{
+				$this->db->where("vehicle_user_id", $this->sess->user_id);
+			}
+
+			$this->db->where("vehicle_active_date2 >=", date("Ymd"));
+		}
+		else
+		if ($this->sess->user_type == 3)
+		{
+			$this->db->where("user_agent", $this->sess->user_agent);		
+		}
+
+		$this->db->join("user", "vehicle_user_id = user_id", "left outer");
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			redirect(base_url());
+		}
+		
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->vehicle_device1 = str_replace("@", "/", $rows[$i]->vehicle_device);
+			if ($rows[$i]->vehicle_device == sprintf("%s@%s", $name, $host))
+			{
+				$row = $rows[$i];
+			}
+		}
+
+		if (! isset($row))
+		{
+			redirect(base_url());
+		}		
+		
+		$this->params['title'] = $this->lang->line('lengine_report').' '.$row->vehicle_name.'-'.$row->vehicle_no.' ';	
+		$this->params["vehicle"] = $row;
+		$this->params["vehicles"] = $rows;
+		$this->params["content"] = $this->load->view('trackers/overspeed', $this->params, true);		
+		$this->load->view("templatesess", $this->params);
+	}	
+	
+	function history($name, $host)
+	{
+		if (! isset($this->sess->user_type))
+		{
+			redirect(base_url());
+		}
+		
+		$_POST['period1'] = isset($_POST['period1']) ? $_POST['period1'] : date("d/m/Y");
+		$_POST['period2'] = isset($_POST['period2']) ? $_POST['period2'] : date("d/m/Y");
+		
+		$_POST['hperiod1'] = isset($_POST['hperiod1']) ? $_POST['hperiod1'] : 0;
+		$_POST['mperiod1'] = isset($_POST['mperiod1']) ? $_POST['mperiod1'] : 0;
+		$_POST['speriod1'] = isset($_POST['speriod1']) ? $_POST['speriod1'] : 0;
+		
+		$_POST['hperiod2'] = isset($_POST['hperiod2']) ? $_POST['hperiod2'] : 23;
+		$_POST['mperiod2'] = isset($_POST['mperiod2']) ? $_POST['mperiod2'] : 59;
+		$_POST['speriod2'] = isset($_POST['speriod2']) ? $_POST['speriod2'] : 59;
+	
+		//$this->db->where("vehicle_device", $name.'@'.$host);
+		
+		$this->db->select("vehicle.*, user_name");		
+		$this->db->order_by("user_name", "asc");
+		$this->db->order_by("vehicle_name", "asc");
+		$this->db->order_by("vehicle_no", "asc");
+		$this->db->where("vehicle_status <>", 3);
+
+		if ($this->sess->user_type == 2)
+		{
+			if ($this->sess->user_company)
+			{
+				$this->db->where_in("vehicle_id", $this->vehicleids);
+			}
+			else
+			{
+				$this->db->where("vehicle_user_id", $this->sess->user_id);
+			}
+
+			$this->db->where("vehicle_active_date2 >=", date("Ymd"));
+		}
+		else
+		if ($this->sess->user_type == 3)
+		{
+			$this->db->where("user_agent", $this->sess->user_agent);                        
+		}
+
+		$this->db->join("user", "vehicle_user_id = user_id", "left outer");
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			redirect(base_url());
+		}
+		
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->vehicle_device1 = str_replace("@", "/", $rows[$i]->vehicle_device);
+			if ($rows[$i]->vehicle_device == sprintf("%s@%s", $name, $host))
+			{
+				$row = $rows[$i];
+			}
+		}
+
+		if (! isset($row))
+		{
+			redirect(base_url());
+		}		
+		
+		$this->params['title'] = $this->lang->line('lhistory_report').' '.$row->vehicle_name.'-'.$row->vehicle_no.' ';
+		$this->params["initmap"] = $this->load->view('initmap', $this->params, true);
+		$this->params["vehicle"] = $row;
+		$this->params["vehicles"] = $rows;
+		$this->params["content"] = $this->load->view('trackers/overspeed', $this->params, true);		
+		$this->load->view("templatesess", $this->params);
+	}	
+
+	function pulse($name, $host)
+	{
+		if (! isset($this->sess->user_type))
+		{
+			redirect(base_url());
+		}
+		
+		$_POST['period1'] = isset($_POST['period1']) ? $_POST['period1'] : date("d/m/Y");
+		$_POST['period2'] = isset($_POST['period2']) ? $_POST['period2'] : date("d/m/Y");
+		
+		$_POST['hperiod1'] = isset($_POST['hperiod1']) ? $_POST['hperiod1'] : 0;
+		$_POST['mperiod1'] = isset($_POST['mperiod1']) ? $_POST['mperiod1'] : 0;
+		$_POST['speriod1'] = isset($_POST['speriod1']) ? $_POST['speriod1'] : 0;
+		
+		$_POST['hperiod2'] = isset($_POST['hperiod2']) ? $_POST['hperiod2'] : 23;
+		$_POST['mperiod2'] = isset($_POST['mperiod2']) ? $_POST['mperiod2'] : 59;
+		$_POST['speriod2'] = isset($_POST['speriod2']) ? $_POST['speriod2'] : 59;
+	
+		//$this->db->where("vehicle_device", $name.'@'.$host);
+		
+		$this->db->select("vehicle.*, user_name");		
+		$this->db->order_by("user_name", "asc");
+		$this->db->order_by("vehicle_name", "asc");
+		$this->db->order_by("vehicle_no", "asc");
+		$this->db->where("vehicle_status <>", 3);
+
+		if ($this->sess->user_type == 2)
+		{
+			if ($this->sess->user_company)
+			{
+				$this->db->where_in("vehicle_id", $this->vehicleids);
+			}
+			else
+			{
+				$this->db->where("vehicle_user_id", $this->sess->user_id);
+			}
+
+			$this->db->where("vehicle_active_date2 >=", date("Ymd"));
+		}
+		else
+		if ($this->sess->user_type == 3)
+		{
+			$this->db->where("user_agent", $this->sess->user_agent);                        
+		}
+
+		$this->db->join("user", "vehicle_user_id = user_id", "left outer");
+		$this->db->where_in("vehicle_type", $this->config->item("vehicle_pulse"));
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			redirect(base_url());
+		}
+		
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->vehicle_device1 = str_replace("@", "/", $rows[$i]->vehicle_device);
+			if ($rows[$i]->vehicle_device == sprintf("%s@%s", $name, $host))
+			{
+				$row = $rows[$i];
+			}
+		}
+
+		if (! isset($row))
+		{
+			redirect(base_url());
+		}		
+		
+		$this->params['title'] = $this->lang->line('lpulse_report').' '.$row->vehicle_name.'-'.$row->vehicle_no.' ';
+		$this->params["vehicle"] = $row;
+		$this->params["vehicles"] = $rows;
+		$this->params["content"] = $this->load->view('trackers/overspeed', $this->params, true);		
+		$this->load->view("templatesess", $this->params);
+	}	
+
+	function odometer($name, $host)
+	{
+		if (! isset($this->sess->user_type))
+		{
+			redirect(base_url());
+		}
+		
+		$_POST['period1'] = isset($_POST['period1']) ? $_POST['period1'] : date("d/m/Y");
+		$_POST['period2'] = isset($_POST['period2']) ? $_POST['period2'] : date("d/m/Y");
+		
+		$_POST['hperiod1'] = isset($_POST['hperiod1']) ? $_POST['hperiod1'] : 0;
+		$_POST['mperiod1'] = isset($_POST['mperiod1']) ? $_POST['mperiod1'] : 0;
+		$_POST['speriod1'] = isset($_POST['speriod1']) ? $_POST['speriod1'] : 0;
+		
+		$_POST['hperiod2'] = isset($_POST['hperiod2']) ? $_POST['hperiod2'] : 23;
+		$_POST['mperiod2'] = isset($_POST['mperiod2']) ? $_POST['mperiod2'] : 59;
+		$_POST['speriod2'] = isset($_POST['speriod2']) ? $_POST['speriod2'] : 59;
+	
+		//$this->db->where("vehicle_device", $name.'@'.$host);
+		
+		$this->db->select("vehicle.*, user_name");		
+		$this->db->order_by("user_name", "asc");
+		$this->db->order_by("vehicle_name", "asc");
+		$this->db->order_by("vehicle_no", "asc");
+		$this->db->where("vehicle_status <>", 3);
+
+		if ($this->sess->user_type == 2)
+		{
+			if ($this->sess->user_company)
+			{
+				$this->db->where_in("vehicle_id", $this->vehicleids);
+			}
+			else
+			{
+				$this->db->where("vehicle_user_id", $this->sess->user_id);
+			}
+
+			$this->db->where("vehicle_active_date2 >=", date("Ymd"));
+		}
+		else
+		if ($this->sess->user_type == 3)
+		{
+			$this->db->where("user_agent", $this->sess->user_agent);                        
+		}
+
+		$this->db->join("user", "vehicle_user_id = user_id", "left outer");
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			redirect(base_url());
+		}
+		
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->vehicle_device1 = str_replace("@", "/", $rows[$i]->vehicle_device);
+			if ($rows[$i]->vehicle_device == sprintf("%s@%s", $name, $host))
+			{
+				$row = $rows[$i];
+			}
+		}
+
+		if (! isset($row))
+		{
+			redirect(base_url());
+		}		
+		
+		$this->params['title'] = $this->lang->line('lhistory_report').' '.$row->vehicle_name.'-'.$row->vehicle_no.' ';
+		$this->params["initmap"] = $this->load->view('initmap', $this->params, true);
+		$this->params["vehicle"] = $row;
+		$this->params["vehicles"] = $rows;
+		$this->params["content"] = $this->load->view('trackers/overspeed', $this->params, true);		
+		$this->load->view("templatesess", $this->params);
+	}	
+	
+	function geofence($name, $host)
+	{
+		if (! isset($this->sess->user_type))
+		{
+			redirect(base_url());
+		}
+		
+		$this->db->distinct();
+		$this->db->where("geofence_name <>", ''); 
+		$this->db->where("geofence_vehicle", $name.'@'.$host);
+		$q = $this->db->get("geofence");
+
+		$rowgeofencenames = $q->result();
+
+		$this->params['geofencenames'] = $rowgeofencenames;
+
+		//$this->db->where("vehicle_device", $name.'@'.$host);
+
+		$this->db->distinct();
+		$this->db->select("geofence_vehicle");
+		$q = $this->db->get("geofence");
+		$rows = $q->result();
+		
+		$vdevices[] = "";
+		for($i=0; $i < count($rows); $i++)
+		{
+			$vdevices[] = $rows[$i]->geofence_vehicle;
+		}		
+				
+		$this->db->select("vehicle.*, user_name");		
+		$this->db->order_by("user_name", "asc");		
+		$this->db->order_by("vehicle_name", "asc");
+		$this->db->order_by("vehicle_no", "asc");		
+		$this->db->where("vehicle_status <>", 3);
+		$this->db->where_in("vehicle_device", $vdevices);
+
+		if ($this->sess->user_type == 2)
+		{
+			if ($this->sess->user_company)
+			{
+				$this->db->where_in("vehicle_id", $this->vehicleids);
+			}
+			else
+			{
+				$this->db->where("vehicle_user_id", $this->sess->user_id);
+			}
+
+			$this->db->where("vehicle_active_date2 >=", date("Ymd"));
+		}
+		else
+		if ($this->sess->user_type == 3)
+		{
+			$this->db->where("user_agent", $this->sess->user_agent);                        
+		}
+
+		$this->db->join("user", "vehicle_user_id = user_id");
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			redirect(base_url());
+		}
+
+		$_POST['period1'] = isset($_POST['period1']) ? $_POST['period1'] : date("d/m/Y");
+		$_POST['period2'] = isset($_POST['period2']) ? $_POST['period2'] : date("d/m/Y");
+
+		$_POST['hperiod1'] = isset($_POST['hperiod1']) ? $_POST['hperiod1'] : 0;
+		$_POST['mperiod1'] = isset($_POST['mperiod1']) ? $_POST['mperiod1'] : 0;
+		$_POST['speriod1'] = isset($_POST['speriod1']) ? $_POST['speriod1'] : 0;
+		
+		$_POST['hperiod2'] = isset($_POST['hperiod2']) ? $_POST['hperiod2'] : 23;
+		$_POST['mperiod2'] = isset($_POST['mperiod2']) ? $_POST['mperiod2'] : 59;
+		$_POST['speriod2'] = isset($_POST['speriod2']) ? $_POST['speriod2'] : 59;
+		
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->vehicle_device1 = str_replace("@", "/", $rows[$i]->vehicle_device);
+			if ($rows[$i]->vehicle_device == sprintf("%s@%s", $name, $host))
+			{
+				$row = $rows[$i];
+			}
+		}
+
+		if (! isset($row))
+		{
+			redirect(base_url());
+		}		
+
+		$this->params['title'] = $this->lang->line('lgeofence_report').' '.$row->vehicle_name.'-'.$row->vehicle_no.' ';	
+		$this->params["vehicle"] = $row;
+		$this->params["vehicles"] = $rows;
+		$this->params["content"] = $this->load->view('trackers/overspeed', $this->params, true);		
+		$this->load->view("templatesess", $this->params);	
+	}
+	
+	function searchgeofence($id, $name, $host, $offset, $geoname)
+	{
+		$geoname = $this->input->post('geoname');
+		if (isset($_POST['format']))
+		{
+			switch($_POST['format'])
+			{
+				case "csv,":
+					$this->config->config['csv_separator'] = ",";
+				break;
+				case "csv;":
+					$this->config->config['csv_separator'] = ";";
+				break;
+
+			}
+		}
+
+		$limit = (isset($_POST['limit']) && $_POST['limit']) ? $_POST['limit'] : $this->config->item('history_limit_records');		
+		$this->db->where("vehicle_device", $name.'@'.$host);
+		$q = $this->db->get("vehicle");
+		$rowvehicle = $q->row();
+
+		$params['vehicle'] = $rowvehicle;
+
+		$t1 = mktime(date("G", $this->period1), date("i", $this->period1), date("s", $this->period1), date("n", $this->period1), date("d", $this->period1), date("Y", $this->period1));
+		$t2 = mktime(date("G", $this->period2), date("i", $this->period2), date("s", $this->period2), date("n", $this->period2), date("d", $this->period2), date("Y", $this->period2));
+	
+		if (isset($_POST['geostatus']) && $_POST['geostatus'])
+		{
+			$this->db->where("geoalert_direction", $_POST['geostatus']);
+		}
+	
+		$this->db->where("geoalert_vehicle", $name.'@'.$host);
+		$this->db->where("geoalert_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("geoalert_time <=", date("Y-m-d H:i:s", $t2));	
+		$this->db->join("geofence", "geofence_id = geoalert_geofence", "left outer");
+				
+		if ($_POST['act'] == "export")
+		{
+		        $this->db->order_by("geoalert_time", "DESC");
+                $q = $this->db->get("geofence_alert");
+	
+			header("Content-type: application/vnd.ms-excel");
+			header("Content-Disposition: attachment; filename=\"geofence_".date("Ymd_His", $this->period1)."_to_".date("Ymd_His", $this->period1).".csv\"");
+			if (isset($_POST['geostatus']) && $_POST['geostatus'])
+			{
+				echo "Status: ".($_POST['geostatus'] == 2 ? $this->lang->line('lout') : $this->lang->line('lin'))."\r\n";
+			}
+				
+			echo "Periode: ".date("d/m/Y H:i:s", $this->period1)." to ".date("d/m/Y H:i:s", $this->period2)."\r\n\r\n";			
+			
+			echo "no";
+			echo $this->config->item('csv_separator');
+			echo "date";
+			echo $this->config->item('csv_separator');
+			echo "time";
+			echo $this->config->item('csv_separator');
+			echo "status";
+			echo $this->config->item('csv_separator');
+			echo "geofence";
+			echo "\r\n";
+		}
+		else
+		{
+
+			$this->db->order_by("geoalert_time", "DESC");		
+			$q = $this->db->get("geofence_alert", $limit, $offset);
+		}
+	
+		$rows = $q->result();
+		
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->geoalert_time_t = dbmaketime($rows[$i]->geoalert_time);
+
+			if ($_POST['act'] == "export")
+			{
+				echo $i+1;
+				echo $this->config->item('csv_separator').date("d/m/Y", $rows[$i]->geoalert_time_t);
+				echo $this->config->item('csv_separator').date("H:i:s", $rows[$i]->geoalert_time_t);
+				echo $this->config->item('csv_separator').($rows[$i]->geoalert_direction == 2 ? $this->lang->line('lout') : $this->lang->line('lin'));
+				if ($rows[$i]->geofence_name)
+				{
+					echo $this->config->item('csv_separator').$rows[$i]->geofence_name;
+				}
+				else
+				{
+					echo $this->config->item('csv_separator').$rows[$i]->geofence_coordinate;
+				}
+				
+				echo "\r\n";
+			}			
+		}	
+		
+		if ($_POST['act'] == "export")
+		{
+			return;
+		}			
+	
+		if (isset($_POST['geostatus']) && $_POST['geostatus'])
+		{
+			$this->db->where("geoalert_direction", $_POST['geostatus']);
+		}
+		
+		$this->db->where("geoalert_vehicle", $name.'@'.$host);
+        $this->db->where("geoalert_time >=", date("Y-m-d H:i:s", $t1));
+        $this->db->where("geoalert_time <=", date("Y-m-d H:i:s", $t2));
+		$total = $this->db->count_all_results("geofence_alert");
+
+		// paging
+		
+		$this->load->library('pagination1');
+
+		$config['total_rows'] = $total;
+		$config['uri_segment'] = 6;
+		$config['per_page'] = $limit;
+		$config['num_links'] = floor($total/$limit);
+
+		$this->pagination1->initialize($config); 
+
+		$params['paging'] = $this->pagination1->create_links();
+		$params['geoname'] = $geoname;
+		$params['gps_name'] = $name;
+		$params['gps_host'] = $host;
+		$params['offset'] = $offset;
+		$params['data'] = $rows;
+		$params['id'] = $id;
+		$html = $this->load->view("trackers/listsearchgeofence", $params, true);
+		
+		$callback['title'] = $rowvehicle->vehicle_no." ".$rowvehicle->vehicle_name;
+		$callback['error'] = false;
+		$callback['html'] = $html;
+			
+		echo json_encode($callback);
+
+	}
+		
+	function mangeofence($host, $name)
+	{
+		redirect(base_url()."geofence/manage/".$host."/".$name);
+	}
+	
+	function animate($rows, $vehicle, $t1, $t2)
+	{
+		// select distinct
+
+		$rows1 = array();
+		
+		$i = 0;
+		while(1)
+		{
+			if ($i >= count($rows)) 
+			{
+				break;
+			}
+		
+			$lng = $rows[$i]->gps_longitude_real_fmt;
+			$lat = $rows[$i]->gps_latitude_real_fmt;
+			
+			if ($i == 0)
+			{
+				$latcenter = $lat;
+				$lngcenter = $lng;
+			}
+			
+			$rows1[$lat][$lng] = $rows[$i];
+			
+			$j = $i+1;
+			while (1)
+			{
+				$i = $j;
+				
+				if ($j >= count($rows))
+				{
+					break;
+				}
+				
+				if ($rows[$j]->gps_longitude_real_fmt != $lng)
+				{					
+					$j++;
+					break;
+				}
+				
+				if ($rows[$j]->gps_latitude_real_fmt != $lat)
+				{
+					$j++;
+					break;
+				}				
+				
+				$j++;
+			}
+		}
+		
+		
+		$this->params["starttime"] = $t1;
+		$this->params["endtime"] = $t2;
+		$this->params["vehicle"] = $vehicle;
+		$this->params["data"] = $rows1;
+		$this->params["center"] = array($latcenter, $lngcenter);
+		$this->params["content"] = $this->load->view("trackers/animate", $this->params, true);
+		$this->load->view("templatesess", $this->params);
+	}
+	
+	function menu($id, $name, $host)
+	{
+		$this->db->where("vehicle_device", $name."@".$host);
+		$q = $this->db->get("vehicle");
+		
+		$row = $q->row();
+		
+		$this->params['vehicle'] = $row;
+		$this->params["pid"] = $id;
+		
+		$html = $this->load->view("trackers/menu", $this->params, true);
+		
+		$callback['html'] = $html;
+		
+		echo json_encode($callback);
+	}
+	
+function fuel($name, $host){
+		if (! isset($this->sess->user_type))
+		{
+			redirect(base_url());
+		}
+		
+		$_POST['period1'] = isset($_POST['period1']) ? $_POST['period1'] : date("d/m/Y");
+		$_POST['period2'] = isset($_POST['period2']) ? $_POST['period2'] : date("d/m/Y");
+		
+		$_POST['hperiod1'] = isset($_POST['hperiod1']) ? $_POST['hperiod1'] : 0;
+		$_POST['mperiod1'] = isset($_POST['mperiod1']) ? $_POST['mperiod1'] : 0;
+		$_POST['speriod1'] = isset($_POST['speriod1']) ? $_POST['speriod1'] : 0;
+		
+		$_POST['hperiod2'] = isset($_POST['hperiod2']) ? $_POST['hperiod2'] : 23;
+		$_POST['mperiod2'] = isset($_POST['mperiod2']) ? $_POST['mperiod2'] : 59;
+		$_POST['speriod2'] = isset($_POST['speriod2']) ? $_POST['speriod2'] : 59;
+	
+		//$this->db->where("vehicle_device", $name.'@'.$host);
+		
+		$this->db->select("vehicle.*, user_name");		
+		$this->db->order_by("user_name", "asc");
+		$this->db->order_by("vehicle_name", "asc");
+		$this->db->order_by("vehicle_no", "asc");
+		$this->db->where("vehicle_status <>", 3);
+
+		if ($this->sess->user_type == 2)
+		{
+			if ($this->sess->user_company)
+			{
+				$this->db->where_in("vehicle_id", $this->vehicleids);
+			}
+			else
+			{
+				$this->db->where("vehicle_user_id", $this->sess->user_id);
+			}
+
+			$this->db->where("vehicle_active_date2 >=", date("Ymd"));
+		}
+		else
+		if ($this->sess->user_type == 3)
+		{
+			$this->db->where("user_agent", $this->sess->user_agent);                        
+		}
+
+		$this->db->join("user", "vehicle_user_id = user_id", "left outer");
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			redirect(base_url());
+		}
+		
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->vehicle_device1 = str_replace("@", "/", $rows[$i]->vehicle_device);
+			if ($rows[$i]->vehicle_device == sprintf("%s@%s", $name, $host))
+			{
+				$row = $rows[$i];
+			}
+		}
+
+		if (! isset($row))
+		{
+			redirect(base_url());
+		}		
+		
+		$this->params['title'] = $this->lang->line('lfuel_report').' '.$row->vehicle_name.'-'.$row->vehicle_no.' ';
+		$this->params["initmap"] = $this->load->view('initmap', $this->params, true);
+		$this->params["vehicle"] = $row;
+		$this->params["vehicles"] = $rows;
+		$this->params["content"] = $this->load->view('trackers/overspeed', $this->params, true);		
+		$this->load->view("templatesess", $this->params);
+	}
+	
+	function searchfuel($id, $name, $host, $offset)
+	{
+		if (isset($_POST['format']))
+		{
+			switch($_POST['format'])
+			{
+				case "csv,":
+					$this->config->config['csv_separator'] = ",";
+				break;
+				case "csv;":
+					$this->config->config['csv_separator'] = ";";
+				break;
+
+			}
+		}
+
+		$limit = (isset($_POST['limit']) && $_POST['limit']) ? $_POST['limit'] : $this->config->item('history_limit_records');
+		$type = isset($_POST['alarmtype']) ? $_POST['alarmtype'] : "";	
+	
+		$order = $this->config->item("orderhist") ? $this->config->item("orderhist") : "desc";
+		
+		$tyesterday = mktime();//-24*3600;
+		$tyesterday = mktime(-7, 59, 59, date('n', $tyesterday), date('j', $tyesterday), date('Y', $tyesterday));		
+		
+		$this->db->where("vehicle_device", $name.'@'.$host);
+		$q = $this->db->get("vehicle");
+		$rowvehicle = $q->row();
+
+		$tblhists = $this->config->item("table_hist");
+		$this->tblhist = $tblhists[strtoupper($rowvehicle->vehicle_type)];
+
+		$tblhists = $this->config->item("table_hist_info");
+		$this->tblinfohist = $tblhists[strtoupper($rowvehicle->vehicle_type)];
+		
+		$params['vehicle'] = $rowvehicle;
+		
+		$t1 = mktime(date("G", $this->period1)-7, date("i", $this->period1), date("s", $this->period1), date("n", $this->period1), date("d", $this->period1), date("Y", $this->period1));
+		$t2 = mktime(date("G", $this->period2)-7, date("i", $this->period2), date("s", $this->period2), date("n", $this->period2), date("d", $this->period2), date("Y", $this->period2));
+		
+		$this->db->where("gps_info_device", $name.'@'.$host);
+		$this->db->where("gps_info_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("gps_info_time <=", date("Y-m-d H:i:s", $t2));		
+				
+		if ($_POST['act'] == "export")
+		{
+			if ($this->period1 >= $tyesterday)
+			{
+				// hari ini
+								
+				$this->db->order_by("gps_info_time", $order);
+				$q = $this->db->get($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+			}
+			else
+			{	
+				$this->db->from($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+				$sql1 = $this->db->_compile_select();
+				$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblinfohist, $sql1);
+				
+				$m_sql = "FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_info_time DESC ";
+				$sql = "SELECT * ".$m_sql;
+
+				$q = $this->db->query($sql);
+			}			
+			
+			header("Content-type: application/vnd.ms-excel");
+			header("Content-Disposition: attachment; filename=\"fuel_".date("Ymd_His", $this->period1)."_to_".date("Ymd_His", $this->period1).".csv\"");
+			
+			echo "no";
+			echo $this->config->item('csv_separator');
+			echo "date";
+			echo $this->config->item('csv_separator');
+			echo "time";
+			echo $this->config->item('csv_separator');
+			echo "position";
+			echo $this->config->item('csv_separator');
+			echo "coordinate";
+			echo $this->config->item('csv_separator');
+			echo "fuel";
+			echo "\r\n";		
+		}
+		else
+		{
+			if ($this->period1 >= $tyesterday)
+			{
+				// hari ini
+								
+				$this->db->order_by("gps_info_time", $order);
+				$q = $this->db->get($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $limit, $offset);
+			}
+			else
+			{	
+				$this->db->from($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+				$sql1 = $this->db->_compile_select();
+				$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblinfohist, $sql1);
+				
+				$m_sql = "FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ORDER BY gps_info_time DESC ";
+				$sql = "SELECT * ".$m_sql." LIMIT ".$limit." OFFSET ".$offset;
+
+				$q = $this->db->query($sql);
+			}			
+		}
+		
+		$rows = $q->result();
+		
+		for($i=0; $i < count($rows); $i++)
+		{
+			$rows[$i]->gps_info_time_t = dbmaketime($rows[$i]->gps_info_time);
+	
+			if ($_POST['act'] == "export")
+			{
+				unset($rowgps);
+				
+				$tgl = floor($rows[$i]->gps_info_utc_date/10000);
+				$bln = floor(($rows[$i]->gps_info_utc_date%10000)/100);
+				$thn = (($rows[$i]->gps_info_utc_date%10000)%100)+2000;
+
+				$jam = floor($rows[$i]->gps_info_utc_coord/10000);
+				$min = floor(($rows[$i]->gps_info_utc_coord%10000)/100);
+				$det = ($rows[$i]->gps_info_utc_coord%10000)%100;
+
+				$t = mktime($jam,$min, $det, $bln, $tgl, $thn);
+				
+				if ($rows[$i]->gps_info_time_t >= $tyesterday)
+				{
+					$this->db->where("gps_time", date("Y-m-d H:i:s", $t));
+					$this->db->where("gps_name", $name);
+					$this->db->where("gps_host", $host);
+					$q = $this->db->get($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type));
+					
+					if ($q->num_rows() > 0)
+					{					
+						$rowgps = $q->row();
+					}
+					
+				}
+				else
+				{
+					$this->db->where("gps_time", date("Y-m-d H:i:s", $t));
+					$this->db->where("gps_name", $name);
+					$this->db->where("gps_host", $host);
+					$q = $this->db->get($this->tblhist);
+					
+					if ($q->num_rows() > 0)
+					{					
+						$rowgps = $q->row();
+					}
+				}
+				
+				if (isset($rowgps))
+				{
+					$gpsinfo = $this->gpsmodel->GetLastInfo("", "", false, $rowgps, 0, $rowvehicle->vehicle_type);
+
+					if (isset($positions[$gpsinfo->gps_longitude_real_fmt][$gpsinfo->gps_longitude_real_fmt]))
+					{
+						$gpsinfo->georeverse = $positions[$gpsinfo->gps_longitude_real_fmt][$gpsinfo->gps_longitude_real_fmt];
+					}
+					else
+					{
+						$gpsinfo->georeverse = $this->gpsmodel->GeoReverse($gpsinfo->gps_latitude_real_fmt, $gpsinfo->gps_longitude_real_fmt);
+					}
+					
+					$positions[$gpsinfo->gps_longitude_real_fmt][$gpsinfo->gps_longitude_real_fmt] = $gpsinfo->georeverse;
+					$rows[$i]->gpsinfo = $gpsinfo;
+				}				
+				
+				$resistance = "";
+				if($rows[$i]->gps_info_ad_input != ""){
+					if($rows[$i]->gps_info_ad_input != 'FFFFFF' || $rows[$i]->gps_info_ad_input != '999999' || $rows[$i]->gps_info_ad_input != 'YYYYYY'){
+						$res_1 = hexdec(substr($rows[$i]->gps_info_ad_input, 0, 4));
+						$res_2 = (hexdec(substr($rows[$i]->gps_info_ad_input, 0, 2))) * 0.1;
+															
+						$resistance = $res_1 + $res_2;
+								
+					}
+				}
+				$rows[$i]->resistance = $resistance;
+				$rows[$i]->fuel = $this->get_fuel($resistance, $rowvehicle->vehicle_fuel_capacity);
+			
+				echo $i+1;
+				echo $this->config->item('csv_separator').date("d/m/Y", $rows[$i]->gps_info_time_t+7*24*3600);
+				echo $this->config->item('csv_separator').date("H:i:s", $rows[$i]->gps_info_time_t+7*24*3600);
+				if (isset($gpsinfo))
+				{
+					echo $this->config->item('csv_separator').str_replace(",","",$rows[$i]->gpsinfo->georeverse->display_name);
+					echo $this->config->item('csv_separator').$rows[$i]->gpsinfo->gps_latitude_real_fmt." ".$rows[$i]->gpsinfo->gps_latitude_real_fmt;
+				}
+				else
+				{
+					echo $this->config->item('csv_separator')."-";
+					echo $this->config->item('csv_separator')."-";
+				}
+				echo $this->config->item('csv_separator').$rows[$i]->fuel;
+				echo "\r\n";
+			}			
+		}	
+		
+		if ($_POST['act'] == "export")
+		{
+			return;
+		}			
+		
+		$this->db->flush_cache();
+		$this->db->where("gps_info_device", $name.'@'.$host);
+		$this->db->where("gps_info_time >=", date("Y-m-d H:i:s", $t1));
+		$this->db->where("gps_info_time <=", date("Y-m-d H:i:s", $t2));		
+	
+		if ($this->period1 >= $tyesterday)
+		{
+			// hari ini					
+			$total = $this->db->count_all_results($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+		}
+		else
+		{	
+			//$this->db->from($this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type));
+			$sql1 = $this->db->_compile_select();
+			$sql2 = str_replace($this->db->dbprefix.$this->gpsmodel->getGPSInfoTable($rowvehicle->vehicle_type), $this->db->dbprefix.$this->tblinfohist, $sql1);
+			
+			$m_sql = "FROM ( ".$sql1." UNION ".$sql2." ) tbl1 ";
+			$sql = "SELECT COUNT(*) tot ".$m_sql;
+
+			$q = $this->db->query($sql);
+			$row = $q->row();
+
+			$total = $row->tot;
+		}				
+		
+		for($i=0; $i < count($rows); $i++)
+		{
+			unset($rowgps);
+			
+			$tgl = floor($rows[$i]->gps_info_utc_date/10000);
+			$bln = floor(($rows[$i]->gps_info_utc_date%10000)/100);
+			$thn = (($rows[$i]->gps_info_utc_date%10000)%100)+2000;
+
+			$jam = floor($rows[$i]->gps_info_utc_coord/10000);
+			$min = floor(($rows[$i]->gps_info_utc_coord%10000)/100);
+			$det = ($rows[$i]->gps_info_utc_coord%10000)%100;
+
+			$t = mktime($jam,$min, $det, $bln, $tgl, $thn);
+			
+			$rows[$i]->gps_info_time_t = dbmaketime($rows[$i]->gps_info_time);
+			
+			if ($rows[$i]->gps_info_time_t >= $tyesterday)
+			{
+				$this->db->where("gps_time", date("Y-m-d H:i:s", $t));
+				$this->db->where("gps_name", $name);
+				$this->db->where("gps_host", $host);
+				$q = $this->db->get($this->gpsmodel->getGPSTable($rowvehicle->vehicle_type));
+				
+				if ($q->num_rows() > 0)
+				{					
+					$rowgps = $q->row();
+				}
+				
+			}
+			else
+			{
+				$this->db->where("gps_time", date("Y-m-d H:i:s", $t));
+				$this->db->where("gps_name", $name);
+				$this->db->where("gps_host", $host);
+				$q = $this->db->get($this->tblhist);
+				
+				if ($q->num_rows() > 0)
+				{					
+					$rowgps = $q->row();
+				}
+			}
+			
+			if (! isset($rowgps)) continue;
+			
+			$gpsinfo = $this->gpsmodel->GetLastInfo("", "", false, $rowgps, 0, $rowvehicle->vehicle_type);
+
+			if (isset($positions[$gpsinfo->gps_longitude_real_fmt][$gpsinfo->gps_longitude_real_fmt]))
+			{
+				$gpsinfo->georeverse = $positions[$gpsinfo->gps_longitude_real_fmt][$gpsinfo->gps_longitude_real_fmt];
+			}
+			else
+			{
+				$gpsinfo->georeverse = $this->gpsmodel->GeoReverse($gpsinfo->gps_latitude_real_fmt, $gpsinfo->gps_longitude_real_fmt);
+			}
+			
+			$positions[$gpsinfo->gps_longitude_real_fmt][$gpsinfo->gps_longitude_real_fmt] = $gpsinfo->georeverse;
+		
+			$rows[$i]->gpsdata = $rowgps;
+			$rows[$i]->gpsinfo = $gpsinfo;	
+			
+			$resistance = "";
+			if($rows[$i]->gps_info_ad_input != ""){
+				if($rows[$i]->gps_info_ad_input != 'FFFFFF' || $rows[$i]->gps_info_ad_input != '999999' || $rows[$i]->gps_info_ad_input != 'YYYYYY'){
+					$res_1 = hexdec(substr($rows[$i]->gps_info_ad_input, 0, 4));
+					$res_2 = (hexdec(substr($rows[$i]->gps_info_ad_input, 0, 2))) * 0.1;
+														
+					$resistance = $res_1 + $res_2;
+							
+				}
+			}
+			$rows[$i]->resistance = $resistance;
+			$rows[$i]->fuel = $this->get_fuel($resistance, $rowvehicle->vehicle_fuel_capacity);
+		}		
+		// paging
+		
+		
+		
+		$this->load->library('pagination1');
+
+		$config['total_rows'] = $total;
+		$config['uri_segment'] = 6;
+		$config['per_page'] = $limit; 
+		$config['num_links'] = floor($total/$limit);
+
+		$this->pagination1->initialize($config); 
+
+		
+		$params['paging'] = $this->pagination1->create_links();		
+		$params['gps_name'] = $name;
+		$params['gps_host'] = $host;
+		$params['offset'] = $offset;
+		$params['data'] = $rows;
+		$params['id'] = $id;
+		$params['vehicle'] = $rowvehicle;
+		$html = $this->load->view("trackers/listsearchfuel", $params, true);
+		
+		$callback['error'] = false;
+		$callback['html'] = $html;
+			
+		echo json_encode($callback);							
+	}
+	
+	function get_fuel($resistance, $capacity){
+		if($resistance==""){
+			return $resistance;
+		}
+		$sql = "SELECT * FROM ( 
+					(
+						SELECT *
+						FROM `webtracking_fuel`
+						WHERE `fuel_tank_capacity` = ". $capacity ."
+						AND `fuel_led_resistance` >= ". $resistance ." 
+						ORDER BY fuel_led_resistance ASC 
+						LIMIT 1
+					) UNION (
+						SELECT *
+						FROM `webtracking_fuel`
+						WHERE `fuel_tank_capacity` = ". $capacity ."
+						AND `fuel_led_resistance` <= ". $resistance ." 
+						ORDER BY fuel_led_resistance DESC 
+						LIMIT 1
+					) 
+				) tbldummy";
+							
+				$qfuel = $this->db->query($sql);
+				
+				$result = "";
+				if ($qfuel->num_rows() > 0){
+   					$rfuel = $qfuel->result();
+								
+					if ($qfuel->num_rows() == 1){
+						$result = $rfuel[0]->fuel_volume . "L";
+					}else{
+						$result = $rfuel[0]->fuel_volume . "L - " . $rfuel[1]->fuel_volume . "L";
+					}
+				}
+				
+				return $result;
+	}
+}
+
+/* End of file welcome.php */
+/* Location: ./system/application/controllers/welcome.php */

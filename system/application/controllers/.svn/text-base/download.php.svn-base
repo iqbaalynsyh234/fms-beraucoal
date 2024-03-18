@@ -1,0 +1,59 @@
+<?php
+include "base.php";
+
+class Download extends Base
+{
+	function download()
+	{
+		parent::Base();
+		$this->load->helper('download');
+	}
+	
+	function tutorial()
+	{
+
+		switch($_SERVER['SERVER_NAME'])
+		{
+			case "lacak-mobil.com":
+			$contents = file_get_contents(base_url().'assets/downloads/ManualLacakMobil.pdf');
+			$name = 'ManualLacakMobil.pdf';
+			break;
+			
+			case "app.oto-track.com":
+			$contents = file_get_contents(base_url().'assets/downloads/ManualOtoTrack.pdf');
+			$name = 'ManualOtoTrack.pdf';
+			break;
+			
+			case "tracker.gpsandalas.com":
+			$contents = file_get_contents(base_url().'assets/downloads/ManualGPSandalas.pdf');
+			$name = 'ManualGPSandalas.pdf';
+			break;
+			
+			case "app.nusa-track.com":
+			$contents = file_get_contents(base_url().'assets/downloads/ManualNusaTrack.pdf');
+			$name = 'ManualNusaTrack.pdf';
+			break;
+			
+			case "pgn.gpsandalas.com":
+			$contents = file_get_contents(base_url().'assets/downloads/ManualGPSandalas.pdf');
+			$name = 'ManualGPSandalas.pdf';
+			break;
+			
+			default : 
+			$contents = file_get_contents(base_url().'assets/downloads/ManualLacakMobil.pdf');
+			$name = 'ManualLacakMobil.pdf';
+			
+		}
+		
+		force_download($name, $contents);
+	}
+	
+	function smsCommand()
+	{
+		$contents = file_get_contents(base_url().'assets/downloads/SMSCommand.pdf');
+		$name = "SMSCommand.pdf";
+		force_download($name, $contents);
+	}
+
+}
+

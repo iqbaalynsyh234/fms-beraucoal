@@ -1,0 +1,25 @@
+		<style type="text/css">		
+			input {
+				border:0;
+			}
+			.inputtext {
+				border:1px solid #AFAFAF;
+				background-color:#F7F7F7;
+				color:#646464;
+				font-family:verdana;
+				font-size:11px;
+			}
+			.btn_send {
+				width:122px;
+				height:26px;
+				font-size:12px;
+				font-weight:bold;
+				color:#9e0b0f;
+				text-transform:uppercase;
+				line-height:normal;
+				font-family:Arial;
+				margin:0;
+				padding:0;
+				background:url(assets/images/btn_send.gif) no-repeat 0 0;
+			}
+		</style>

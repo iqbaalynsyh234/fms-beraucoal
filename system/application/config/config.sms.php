@@ -1,0 +1,150 @@
+<?php
+	$config['SMS_PER_MONTH'] = 50000;
+	$config['SMS_PERIOD'] = 60; // menit
+	$config['SMS_API_KEY'] = "bismillaah135020";	
+	$config['SMS_API_URL'] = "http://sms.mondial.co.id/rest/v3/sms.php";
+	$config['SMS_LIMIT'] = 100;
+	$config['SMS_SKIP_NO'] = array("6281932244643", "6287885204333", "6285215492983", "181877", "62181877", "2767");
+	$config['SMS_PULSE_CENTER'] = "6285215492983";
+	$config['SMS_MYGSM'] = "081932244643";
+	//$config['SMS_GPSANDALAS_TEKNISI'] = array('081703559911', '081231164447', '085648367747', '081332417541', '081515516663', '08563129444');
+	//$config['SMS_GPSANDALAS_TEKNISI'] = array('081231164447', '085648367747', '081332417541', '081515516663', '08563129444');
+	$config['SMS_GPSANDALAS_TEKNISI'] = array('081231164447', '081515516663');
+	
+	$config['SMS_LACAKMOBIL'] = array("6281317884830");
+	$config['SMS_GPSANDALAS'] = array("628123281232");
+	$config['SMS_OWNER'] = array("6285717019778");
+	$config['SMS_ADMIN'] = array("6285717019778", "6281317884830", "628122366356", "6285813941884", "6285813941884");
+	$config['SKIP_WELCOME_USER'] = array(417);
+	
+	$config['SMS_COMMAND_POSISI'] = array("POSISI", "PSS");
+	$config['SMS_COMMAND_REG'] = array("KM", "PARK", "RESTART", "PSSSEMUA", "AKTIVASIUSER", "AKTIVASIMOBIL", "NOTIFIKASI", "GEOFENCE", "BROADCAST");
+	
+	$config['SMS_DATA_TERLAMBAT'] = 20; // hours
+	$config['SMS_REMINDER'] = 2; // days
+	$config['SMS_DATA_TERLAMBAT_MESSAGE'] = "Kend %s %s tdk terupdate slm %s sejak %s. Silahkan hub layanan pelanggan di %s. U/ berhenti dikirim alert, kirim sms NOTIFIKASI OFF.
+Terima kasih
+%s";
+	
+	$config['SMS_EXPIRED_1_VEHICLE'] = "Masa berlaku layanan %s %s habis sejak %s. Lakukan pembayaran/hub cs di %s.
+%s";
+	$config['SMS_EXPIRED_N_VEHICLE'] = "Brkt kend %s yg masa berlaku layanannya habis: %s. Lakukan pembayaran/hub cs di %s.
+%s";
+
+	$config['SMS_REMINDER_IN_N_DAY_1_VEHICLE'] = "Masa berlaku layanan %s %s akan habis %s hari lagi. Lakukan pembayaran/hub layanan pelanggan di %s.
+%s";
+	$config['SMS_REMINDER_IN_N_DAY_N_VEHICLE'] = "Brkt kend %s yg masa berlaku layanan akan habis %s hari lagi: %s. Lakukan pembayaran/hub cs di %s.
+%s";
+
+	$config['SMS_DATA_UPDATE'] = "%s, kend %s %s telah ter-update kembali.  %s U/ berhenti dikirim alert, kirim sms NOTIFIKASI OFF";
+
+	$config['SMS_MAXTIME_SEMUA'] = "Untuk command PSSSEMUA diperbolehkan 30 menit sekali. Silahkan hubungi agen Anda";
+
+	$config['SMS_ALERT_MAX_SPEED'] = "Pada %s, Speed %s adalah %s km/jam, Pos : ";
+	$config['MAIL_ALERT_MAX_SPEED'] = "Pada %s, Speed %s adalah %s km/jam, Pos : ";
+	
+	$config['SMS_ALERT_MAX_PARK'] = "Pada %s, lama parkir %s adalah %s menit dimana ambang batas lama parkir adalah %s menit. U/ berhenti dikirim alert, ketik NOTIFIKASI OFF PARKIR dan kirim ke no ini.";
+	$config['MAIL_ALERT_MAX_PARK'] = "Pada %s, lama parkir %s adalah %s menit dimana ambang batas lama parkir adalah %s menit.";
+	
+	$config['SMS_INVALIDCOMMAND_MESSAGE'] = "Format SMS salah. Format yang benar ketik : PSS<spasi><username><spasi><no kendaraan>";	
+	$config['SMS_POSISI_ACCESS_DENIED'] = "Login %s tidak diperbolehkan monitor posisi kendaraan %s. Silahkan hub agen Anda.";
+
+	$config['SMS_NOMOBIL_NOTFOUND'] = "No kendaraan '%s' tidak di temukan, silahkan ketik No. Kendaraan yang benar.";
+	$config['SMS_NOMOBIL_NOTFOUND_SEMUA'] = "Tdk ada kendaraan terdaftar.";
+
+	$config['SMS_INVALID_LOGIN'] = "Username salah. Format SMS yang benar PSS<spasi><username><spasi><no kendaraan>. Silahkan hub agen Anda.";
+	$config['SMS_INVALID_LOGIN_SEMUA'] = "Username salah. Format SMS yang benar PSSSEMUA<spasi><username>. Silahkan hub agen Anda.";
+	$config['SMS_ACCESS_DENIED_PSS_SEMUA'] = "Admin atau agen tidak diperbolehkan request semua posisi kendaraan. Hub support@lacak-mobil.com";	
+
+	$config['SMS_NOMOBIL_EXPIRED_LACAKMOBIL'] = "Mohon maaf masa layanan %s telah habis. Mohon melakukan pembayaran layanan. Silahkan hub Agen Anda di %s ";
+	$config['SMS_NOMOBIL_EXPIRED_GPSANDALAS'] = "Mohon maaf masa layanan %s telah habis. Mohon melakukan pembayaran layanan. layanan pelanggan di 031 7077 1444.
+Terima kasih
+www.gpsandalas.com";
+	
+	$config['SMS_INVALIDKMCOMMAND_MESSAGE'] = "Format yang benar KM<spasi><maksimum kecepatan><spasi><no kendaraan>, misal KM 100 B1234CD";
+	$config['SMS_KM_ACCESS_DENIED'] = "Anda tidak diperbolehkan setting kendaraan %s. Silahkan hub agen Anda.";
+	
+	$config['SMS_INVALIDGEOFENCECOMMAND_MESSAGE'] = "Format yang benar GEOFENCE<SPASI><NAMA KOTA/KAB>;<NAMA PROPINSI>;<no kendaraan>, misal GEOFENCE JAKARTA SELATAN;JAKARTA;B1234CD";
+	$config['SMS_GEOFENCE_ACCESS_DENIED'] = "Anda tidak diperbolehkan setting geofence kendaraan %s. Silahkan hub agen Anda.";
+	$config['SMS_GEOFENCE_THANKS'] = "Terima kasih. Kami akan segera mem-proses request setting geofence u/ kend %s %s. %s";
+	
+	$config['SMS_INVALIDPARKCOMMAND_MESSAGE'] = "Format yang benar PARK<spasi><lama parkir dlm menit><spasi><no kendaraan>, misal PARK 5 B1234CD";
+	$config['SMS_PARK_ACCESS_DENIED'] = "Anda tidak diperbolehkan setting kendaraan %s. Silahkan hub agen Anda.";
+	
+	$config['SMS_NOTENOUGHDEPOSIT_MESSAGE'] = "Deposit Anda tidak mencukupi untuk auto refill GPS kendaraan '%s'. Lebih lanjut hub support@adilahsoft.com";	
+	
+	$config['SMS_NEW_VEHICLE'] = "Selamat bergabung dgn %s. Utk monitor posisi kend via sms. Ketik PSS %s %s kirim ke no ini. U/ mendapatkan informasi perintah2 sms, kirim sms INFO ke no ini";	
+	$config['SMS_ALERT_GEOFENCE_OUT'] = "Pd %s, %s keluar dr area %s. ";
+	$config['SMS_ALERT_GEOFENCE_IN'] = "Pd %s, %s masuk area %s. ";
+	$config['MAIL_ALERT_GEOFENCE_OUT'] = "Pd %s, %s keluar dr area %s.";
+	$config['MAIL_ALERT_GEOFENCE_IN'] = "Pd %s, %s masuk area %s.";
+
+	$config['SMS_PSSSEMUA_DISABLE'] = "Mohon maaf perintah PSSSEMUA di non aktifkan, Untuk cek posisi, silahkan kirim PSS username Nokendaraan";
+
+	$config['SMS_WELCOME'] = 0;
+	
+	$config['SMS_AUTOREFILL_AMOUNT_PULSA'] = 20000;
+	$config['SMS_AUTOREFILL_AMOUNT_DEBET'] = 22000;
+	$config['SMS_AUTOREFILL_LONG'] = 20;
+	$config['SMS_AUTOREFILL_SKIP'] = 30;
+	
+	$config['SMS_TRANSAKSI'] = "I.%s20.%s.3530";
+	
+	$config['SMS_811'] = "A";
+	$config['SMS_812'] = "A";
+	$config['SMS_813'] = "A";
+	$config['SMS_852'] = "A";
+	$config['SMS_853'] = "A";
+	$config['SMS_821'] = "A";
+
+	$config['SMS_815'] = "I";
+	$config['SMS_816'] = "I";
+	$config['SMS_855'] = "I";
+	$config['SMS_856'] = "I";
+	$config['SMS_857'] = "I";
+	$config['SMS_858'] = "I";
+	
+	$config['SMS_817'] = "X";
+	$config['SMS_818'] = "X";
+	$config['SMS_819'] = "X";
+	$config['SMS_877'] = "X";
+	$config['SMS_878'] = "X";
+	$config['SMS_879'] = "X";
+
+	$config['SMS_831'] = "AX";
+	$config['SMS_838'] = "AX";
+	
+	$config['SMS_896'] = "T";
+	$config['SMS_897'] = "T";
+	$config['SMS_898'] = "T";
+	$config['SMS_899'] = "T";
+	
+	$config['SMS_881'] = "SM";
+	$config['SMS_882'] = "SM";
+	$config['SMS_883'] = "SM";
+	$config['SMS_884'] = "SM";
+	
+	$config['SMS_885'] = "FR";
+	$config['SMS_886'] = "FR";
+	$config['SMS_887'] = "FR";
+	$config['SMS_888'] = "FR";
+	
+	$config['SMS_828'] = "C";
+
+	$config['SMS_AKTIVASI'] = array("628123281232", "6285717019778", "6281317884830", "622193161505", "6285882241422");
+	$config['SMS_INVOICEAPPROVED'] = array("628123281232", "6285717019778");
+	$config['SMS_COMMAND'] = "Perintah SMS: 
+1. Cek posisi: PSS <login> <no kend>, misal PSS adilahrent B1234CD
+2. Setting Kec Maks: KM <kec max dalam km> <no kend>, misal KM 150 B1234CD
+3. Setting maks lama parkir: PARK <maks lama parkir dalam menit> <no kend>, misal PARK 120 B1234CD, 
+4. Matikan mesin: MATIKAN <no kend>, misal MATIKAN B1234CD
+5. Nyalakan mesin: NYALAKAN <no kend>, misal NYALAKAN B1234CD
+6. Setting daerah pergerakan mobil: GEOFENCE<SPASI><NAMA KOTA/KAB>;<NAMA PROPINSI>;<no kendaraan>, misal GEOFENCE;KOTA BOGOR;JAWA BARAT;B1234CD
+7. Informasi agen: AGEN <login name atau no kend>, misal AGEN adilahrent atau AGEN B1234CD
+8. Lock kendaraan: LOCK <no kendaraan>, misal LOCK B1234CD
+9. Unlock kendaraan: UNLOCK <no kendaraan>, misal UNLOCK B1234CD
+10. Matikan sms notifikasi: NOTIFIKASI OFF <SEMUA/GEOFENCE/PARKIR/SPEED>
+11. Myalakan sms notifikasi: NOTIFIKASI ON <SEMUA/GEOFENCE/PARKIR/SPEED>
+12. Informasi akun: AKUN
+";
+	

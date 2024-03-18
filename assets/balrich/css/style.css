@@ -1,0 +1,146 @@
+body {
+	background:#ffffff;
+	background-image:url(../images/backa.png);
+	background-repeat:repeat-x;
+	background-position:;
+	margin-top:-15px;
+	}
+.boxhead {
+	border:0px solid black;
+	background-color:#ffffff;
+}
+.boxhead2 {
+	border:0px solid black;
+	background-image:url(../images/head.png);
+	background-repeat:repeat-x;
+	width: 960px;
+	height: 140px;
+	}
+
+.menubar {
+	border:0px solid black;
+	background-image:url(../images/head2.png);
+	background-repeat:no-repeat;
+	width: 960px;
+	height: 33px;
+	}
+.menubar8 {
+	border:0px solid black;
+	background-image:url(../images/head2.png);
+	background-repeat:no-repeat;
+	background-color:#0baffb;
+	width:960px;
+	height:10px;
+}
+.count2 {
+	border:0px solid black;
+	background-color:green;
+	width: 960px;
+	height:400px;
+	float:center;
+}
+.count {
+	border:0px solid black;
+	background-image:url(../images/logo2.jpg);
+	background-repeat:no-repeat;
+	width: 960px;
+	height: 400px;
+	}
+
+.boxcount {
+	border:0px solid black;
+	background-color:;
+	width: 620px;
+	height:360px;
+	margin-top:17px;
+	margin-left:15px;
+	float:left;
+}
+.boxcount2 {
+	border:0px solid black;
+	background-color:;
+	width: 441px;
+	height:390px;
+	margin-top:5px;
+	margin-left:5px;
+	float:left;
+}
+.boxcount0 {
+	border:1px solid black;
+	background-image:url(...images/boxcount3.png);
+	background-repeat:repeat-y;
+	width: 300px;
+	height:390px;
+	margin-top:5px;
+	margin-right:5px;
+	float:right;
+}
+.boxcount3 {
+	border:0px solid black;
+	background-image:url(../images/boxcount3.png);
+	background-repeat:repeat-y;
+	width: 300px;
+	height: 360px;
+	float:right;
+	margin-right:15px;
+	margin-top:18px;
+	}
+.mfoot {
+	border:0px solid black;
+	background-color:#0baffb;
+	width:960px;
+	height: 10px;
+}
+.boxmonit1 {
+	border:0px solid black;
+	background-image:url(../images/monit.png);
+	background-repeat:no-repeat;
+	width: 320px;
+	height: 175px;
+	margin-top:10px;
+	margin-left:5px;
+	}
+
+.boxmonit2 {
+	border:0px solid black;
+	background-image:url(../images/monit2.png);
+	background-repeat:no-repeat;
+	width: 320px;
+	height: 130px;
+	margin-top:0px;
+	margin-left:5px;
+	}
+
+
+.boxmonit20 {
+	border:0px solid white;
+	background-color:#0baffb;
+	width:290px;
+	height:65px;
+	margin-top:0px;
+}
+.footer {
+	border:0px solid black;
+	background-image:url(../images/head.png);
+	background-repeat:repeat-x;
+	width: 960px;
+	height: 100px;
+	margin-top:-100px;
+	}
+.form {
+	font-size:;
+	color:black;
+}
+
+.cont {
+    float: left;
+    height:34px;
+    overflow: hidden;
+    margin: 0 0px 0 0;
+    -webkit-transition: height 1s ease-in;
+    -moz-transition: height 1s ease-in; 
+    -o-transition: height 1s ease-in;   
+}
+ .cont:hover {
+    height:230px;
+}

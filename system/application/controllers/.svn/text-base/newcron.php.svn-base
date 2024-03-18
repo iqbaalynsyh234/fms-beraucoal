@@ -1,0 +1,2009 @@
+<?php
+include "base.php";
+
+class NewCron extends Base {
+	var $vindex;
+	var $m_last_smsreceive;
+
+	function NewCron()
+	{
+		parent::Base();	
+		
+		$this->load->model("gpsmodel");
+		$this->load->model("smsmodel");
+		$this->load->model("configmodel");
+		$this->load->library('email');
+		$this->load->helper('email');
+		$this->load->helper('common');
+		
+		$this->m_last_smsreceive = 0;
+	}
+	
+	function history($vtype="")
+	{
+		$this->db->order_by("vehicle_type", "asc");
+		$this->db->where("vehicle_status", 1);
+		$this->db->select("vehicle_device, vehicle_type");	
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			die("vehicle is empty\r\n");
+		}
+		
+		$rows = $q->result();
+		
+		for($i=0; $i < count($rows); $i++)
+		{
+			$vehiclesbytype[strtoupper($rows[$i]->vehicle_type)][] = $rows[$i]->vehicle_device; 
+		}
+		
+		$tblhists = $this->config->item("table_hist");
+		$tblinfos = $this->config->item("table_hist_info");
+		$allservicenames = $this->config->item("service");
+
+		foreach($vehiclesbytype as $vehicletype=>$vehicleids)
+		{
+			$start = time();
+			
+			if ($vtype)
+			{
+				$vtype1 = str_replace("_", " ", $vtype);
+				if (! in_array($vehicletype, array($vtype, $vtype1))) continue;
+			}
+			
+			printf("Processing %s (%d)....\r\n", $vehicletype, count($vehicleids));
+			
+			$tablegps = $this->gpsmodel->getGPSTable($vehicletype);
+			$tableinfo = $this->gpsmodel->getGPSInfoTable($vehicletype);
+			
+			if (! isset($allservicenames[$tablegps]))
+			{
+				printf("can't found service for table %s\r\n", $tablegps);
+				continue;
+			}
+			$servicenames = $allservicenames[$tablegps];
+			
+			if (! isset($tblhists[$vehicletype]))
+			{
+				printf("can't found table hist for %s\r\n", $vehicletype);
+				continue;
+			}
+			$tablegpshist = $tblhists[$vehicletype];			
+
+
+			if (! isset($tblinfos[$vehicletype]))
+			{
+				printf("can't found table hist info for %s\r\n", $vehicletype);
+				continue;
+			}
+			$tableinfohist = $tblinfos[$vehicletype];
+			
+			foreach($servicenames as $servicename)
+			{				
+				$this->servicekill($servicename);
+			}
+			
+			$yesterday = mktime(-7, 0, 0, date('n'), date('j')-1, date('Y'));
+			
+			unset($updateds);
+			unset($infoupdateds);
+			
+			$i = 0;
+			foreach($vehicleids as $vehicleid)
+			{
+				printf(">>> %03d/%d Processing %s \r\n", ++$i, count($vehicleids), $vehicleid);
+				
+				$ids = explode("@", $vehicleid);
+				
+				// gps
+				
+				$this->db->limit(1);
+				$this->db->order_by("gps_time", "desc");
+				$this->db->where("gps_name", $ids[0]);
+				$this->db->where("gps_host", $ids[1]);				
+				$q = $this->db->get($tablegps);
+				
+				if ($q->num_rows() > 0) 
+				{										
+					$row = $q->row();
+					
+					$updateds[] = $row->gps_id;
+				}
+				else
+				{				
+					printf(">>> %03d/%d %s historically\r\n", ++$i, count($vehicleids), $vehicleid);
+
+					$this->db->limit(1);
+					$this->db->order_by("gps_time", "desc");
+					$this->db->where("gps_name", $ids[0]);
+					$this->db->where("gps_host", $ids[1]);				
+					$q = $this->db->get($tablegpshist);
+					
+					if ($q->num_rows() > 0)
+					{
+						unset($row);
+						$row = $q->row_array();
+						
+						unset($row['gps_id']);
+						$this->db->insert($tablegps, $row);
+						
+						$updateds[] = $this->db->insert_id();
+					}
+				}
+				
+				// gps info
+				
+				$this->db->limit(1);
+				$this->db->order_by("gps_info_time", "desc");
+				$this->db->where("gps_info_device", $vehicleid);
+				$q = $this->db->get($tableinfo);
+				
+				if ($q->num_rows() > 0) 
+				{										
+					$row = $q->row();
+					
+					$infoupdateds[] = $row->gps_info_id;
+				}
+				else
+				{				
+					$this->db->limit(1);
+					$this->db->order_by("gps_info_time", "desc");
+					$this->db->where("gps_info_device", $ids[0]);
+					$q = $this->db->get($tableinfohist);
+					
+					if ($q->num_rows() > 0)
+					{
+						unset($row);
+						$row = $q->row_array();
+						
+						unset($row['gps_info_id']);
+						$this->db->insert($tableinfo, $row);
+						
+						$infoupdateds[] = $this->db->insert_id();
+					}
+				}				
+			}
+			
+			if (isset($updateds))
+			{
+				$sql = sprintf("
+							INSERT INTO %s%s
+								(		gps_name, gps_host, gps_type, gps_utc_coord, gps_status, gps_latitude, gps_ns, gps_longitude, gps_ew
+									,	gps_speed, gps_course, gps_utc_date, gps_mvd, gps_mv, gps_cs, gps_msg_ori, gps_time, gps_latitude_real
+									, 	gps_longitude_real,	gps_odometer, gps_workhour
+								)							
+							SELECT 		gps_name, gps_host, gps_type, gps_utc_coord, gps_status, gps_latitude, gps_ns, gps_longitude, gps_ew
+									,	gps_speed, gps_course, gps_utc_date, gps_mvd, gps_mv, gps_cs, gps_msg_ori, gps_time, gps_latitude_real
+									, 	gps_longitude_real,	gps_odometer, gps_workhour 
+							FROM 	%s%s 
+							WHERE 	gps_time > '%s'"
+							,$this->db->dbprefix, $tablegpshist, $this->db->dbprefix, $tablegps, date('Y-m-d H:i:s', $yesterday)
+						);
+				
+				printf(">>> move to tabel history\r\n");
+				$q = $this->db->query($sql);
+				
+				printf(">>> delete history data from current table\r\n");
+				$this->db->where_not_in("gps_id", $updateds);
+				$this->db->delete($tablegps);
+								
+				$sql = sprintf("OPTIMIZE TABLE %s%s", $this->db->dbprefix, $tablegps);
+				$this->db->query($sql);				
+			}
+
+			if (isset($infoupdateds))
+			{
+				$sql = sprintf("
+							INSERT INTO %s%s
+								(		gps_info_device, gps_info_hdop, gps_info_io_port, gps_info_distance, gps_info_alarm_data
+									, 	gps_info_ad_input, gps_info_utc_coord, gps_info_utc_date, gps_info_alarm_alert, gps_info_time
+									, 	gps_info_status, gps_info_gps
+
+								)							
+							SELECT 		gps_info_device, gps_info_hdop, gps_info_io_port, gps_info_distance, gps_info_alarm_data
+									, 	gps_info_ad_input, gps_info_utc_coord, gps_info_utc_date, gps_info_alarm_alert, gps_info_time
+									, 	gps_info_status, gps_info_gps
+							FROM 	%s%s 
+							WHERE 	gps_info_time > '%s'"
+							,$this->db->dbprefix, $tableinfohist, $this->db->dbprefix, $tableinfo, date('Y-m-d H:i:s', $yesterday)
+						);
+				
+				printf(">>> move to tabel info history\r\n");
+				$q = $this->db->query($sql);
+				
+				printf(">>> delete history info data from current table\r\n");
+				$this->db->where_not_in("gps_info_id", $infoupdateds);
+				$this->db->delete($tableinfo);
+								
+				$sql = sprintf("OPTIMIZE TABLE %s%s", $this->db->dbprefix, $tableinfo);
+				$this->db->query($sql);				
+			}
+
+			foreach($servicenames as $servicename)
+			{				
+				$this->servicestart($servicename);
+			}
+			
+			$mail['subject'] = sprintf("proses history data: %s", $vehicletype);
+			$mail['message'] = sprintf("mulai: %s, berakhir: %s, lama proses: %d menit", date("d/m/Y H:i:s", $start), date("d/m/Y H:i:s"), round((time()-$start)/60));
+			$mail['dest'] = "prastgtx@gmail.com,owner@adilahsoft.com"; 
+			
+			lacakmobilmail($mail);
+		}
+	}
+	
+	function oldvehicle($month=6)
+	{
+		$sixmonthbefore = mktime(0, 0, 0, date('n')-$month, date('j'), date('Y'));
+		
+		unset($update);
+		$update['vehicle_status'] = 2;
+		
+		$this->db->where("vehicle_status", 1);
+		$this->db->where("vehicle_active_date2 <", date("Ymd", $sixmonthbefore));
+		$this->db->update("vehicle", $update);		
+		
+		$mail['subject'] = sprintf("remove old vehicle");
+		$mail['message'] = sprintf("removing vehicle with expire date > %d month(s)\r\n", $month);
+		$mail['dest'] = "prastgtx@gmail.com,owner@adilahsoft.com"; 
+		
+		lacakmobilmail($mail);
+
+	}
+	
+	function oldhist()
+	{
+		$start = mktime();
+		
+		$this->db->where("config_name", "maxhist");
+		$q = $this->db->get("config");
+		
+		if ($q->num_rows() == 0)
+		{
+			die("Hist config is not define");
+		}
+
+		$row = $q->row();		
+		$t = mktime(16, 59, 59, date('n')-$row->config_value, date('j'), date('Y'));
+
+		$tblinfos = $this->config->item("table_hist_info");
+		foreach($tblinfos as $tblinfo)
+		{
+			printf("move to archive %s < %s\r\n", $tblinfo, date("Y-m-d H:i:s", $t));
+
+			$sql = sprintf("
+					INSERT INTO %sgps_info_archive 
+					(
+							gps_info_device, gps_info_hdop, gps_info_io_port, gps_info_distance, gps_info_alarm_data, gps_info_ad_input, gps_info_utc_coord
+						,	gps_info_utc_date, gps_info_alarm_alert, gps_info_time, gps_info_status, gps_info_gps
+					)						
+					SELECT 	gps_info_device, gps_info_hdop, gps_info_io_port, gps_info_distance, gps_info_alarm_data, gps_info_ad_input, gps_info_utc_coord
+							,	gps_info_utc_date, gps_info_alarm_alert, gps_info_time, gps_info_status, gps_info_gps
+					FROM 	%s%s
+					WHERE 	gps_info_time < '%s' 
+				", $this->db->dbprefix, $this->db->dbprefix, $tblinfo, date("Y-m-d H:i:s", $t));
+			
+			$this->db->query($sql);
+			
+			printf("delete %s < %s\r\n", $tblinfo, date("Y-m-d H:i:s", $t));
+			
+			$this->db->where("gps_info_time <", date("Y-m-d H:i:s", $t));
+			$this->db->delete($tblinfo);
+			
+			$sql = sprintf("OPTIMIZE TABLE %s%s", $this->db->dbprefix, $tblinfo);
+			printf("%s\r\n", $sql);
+			
+			$this->db->query($sql);						
+		}
+		
+		$tblhists = $this->config->item("table_hist");
+		foreach($tblhists as $tblhist)
+		{
+			printf("move to archive %s < %s\r\n", $tblhist, date("Y-m-d H:i:s", $t));
+			
+			$sql = sprintf("
+				INSERT INTO %sgps_archive
+				(
+						gps_name, gps_host, gps_type, gps_utc_coord, gps_status, gps_latitude, gps_ns, gps_longitude, gps_ew
+					,	gps_speed, gps_course, gps_utc_date, gps_mvd, gps_mv, gps_cs, gps_msg_ori, gps_time, gps_latitude_real, gps_longitude_real
+					,	gps_odometer, gps_workhour
+				)						
+				SELECT 		gps_name, gps_host, gps_type, gps_utc_coord, gps_status, gps_latitude, gps_ns, gps_longitude, gps_ew
+						,	gps_speed, gps_course, gps_utc_date, gps_mvd, gps_mv, gps_cs, gps_msg_ori, gps_time, gps_latitude_real, gps_longitude_real
+						,	gps_odometer, gps_workhour			
+				FROM 	%s%s
+				WHERE	gps_time < '%s'
+			", $this->db->dbprefix, $this->db->dbprefix, $tblhist, date("Y-m-d H:i:s", $t));
+			
+			$this->db->query($sql);
+			
+			
+			printf("delete %s < %s\r\n", $tblhist, date("Y-m-d H:i:s", $t));
+			
+			$this->db->where("gps_time <", date("Y-m-d H:i:s", $t));
+			$this->db->delete($tblhist);
+			
+			$sql = sprintf("OPTIMIZE TABLE %s%s", $this->db->dbprefix, $tblhist);
+			printf("%s\r\n", $sql);
+			
+			$this->db->query($sql);						
+		}
+
+		$mail['subject'] = sprintf("remove history data");
+		$mail['message'] = sprintf("mulai: %s, 
+		berakhir: %s, 
+		lama proses: %d menit
+		
+		=======================
+		
+		job ini jalan setiap hari sabtu jam 03:00, lokasi ada di colo 2
+		konfigurasi maximum history ada di table config
+		
+		=======================
+				
+		", date("d/m/Y H:i:s", $start), date("d/m/Y H:i:s"), round((time()-$start)/60));
+		$mail['dest'] = "prastgtx@gmail.com,owner@adilahsoft.com"; 
+		
+		lacakmobilmail($mail);
+		
+	}
+
+	function servicekill($servicename)
+	{
+		$pid = $this->getpid($servicename);
+		if (! $pid) return;
+				
+		printf("%s: PID=%d\r\n", $servicename, $pid); 
+		
+		$kill = sprintf("taskkill /PID %d /F", $pid);		
+		exec($kill);					
+		printf("%s: killed\r\n", $servicename); 			
+	}
+	
+	function servicestart($servicename)
+	{
+		$start = sprintf("sc start %s", $servicename);
+		exec($start);		
+		printf("%s: started\r\n", $servicename); 
+	}
+
+	function getpid($servicename)
+	{
+		exec("sc queryex ".$servicename, $lines);
+
+		for($i=0; $i < count($lines); $i++)
+		{
+			$line = trim($lines[$i]);
+			$pos = strpos($line, ":");
+			
+			$key = trim(substr($line, 0, $pos-1));
+			$val = trim(substr($line, $pos+1));
+			
+			if ($key == "PID") return $val;
+		}
+		
+		return 0;
+	}
+	
+	function dump()
+	{
+		$tables = $this->config->item("DUMP_TABLE");
+		$path = $this->config->item("MYSQL_DUMP_PATH");
+		$cli = $this->config->item("MYSQL_DUMP_CLI");
+		
+		$tablename = "";
+		foreach($tables as $tbl)
+		{
+			$tablename .= " ".$this->db->dbprefix.$tbl;
+		}
+		
+		$filename = "dump_".date("Ymd").".sql";
+
+		$cli = sprintf($cli, $tablename, $path, $filename);
+		system($cli);
+		
+		$message = sprintf("dump %s to %s%s", implode(",", $tables), $path, $filename);
+		mail("prastgtx@gmail.com,owner@adilahsoft.com", "dump", $message);
+		
+	}
+
+	function delayalert()
+	{
+		$tblhists = $this->config->item("table_hist");
+		$delays = $this->config->item("css_tracker_delay");		
+		
+		$this->db->order_by("user_login", "asc");
+		$this->db->order_by("vehicle_no", "asc");
+		$this->db->where("vehicle_status", 1);
+		$this->db->join("user", "user_id = vehicle_user_id");
+		$q = $this->db->get("vehicle");
+		
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			printf("%04d %s %s...\r\n", $i+1, $rows[$i]->user_login, $rows[$i]->vehicle_no);
+			
+			$tablegps = $this->gpsmodel->getGPSTable($rows[$i]->vehicle_type);
+			$tablegpshist = $tblhists[strtoupper($rows[$i]->vehicle_type)];
+			
+			$devices = explode("@", $rows[$i]->vehicle_device);
+			
+			$this->db->limit(1);
+			$this->db->order_by("gps_time", "desc");
+			$this->db->where("gps_name", $devices[0]);
+			$this->db->where("gps_host", $devices[1]);
+			
+			$q = $this->db->get($tablegps);
+			
+			if ($q->num_rows() == 0)
+			{
+				// ambil dari history
+				
+				$this->db->limit(1);
+				$this->db->order_by("gps_time", "desc");
+				$this->db->where("gps_name", $devices[0]);
+				$this->db->where("gps_host", $devices[0]);
+				
+				$q = $this->db->get($tablegpshist);
+				
+				if ($q->num_rows() == 0)
+				{
+					$rows[$i]->time_fmt = "-";
+					$rows[$i]->delays = $delays[0];
+					
+					if ($rows[$i]->user_agent == $this->config->item("GPSANDALASID"))
+					{
+						$datas['gpsandalas'][] = $rows[$i];
+					}
+					else
+					{
+						$datas['lacakmobil'][] = $rows[$i];
+					}
+					continue;
+				}				
+			}
+			
+			$row = $q->row();
+			
+			$time = dbmaketime($row->gps_time)+7*3600;
+			$delta = mktime()-$time;
+			
+			for($j=0; $j < count($delays); $j++)
+			{
+				if ($delta > ($delays[$j][0]*60)) break;				
+			}
+			
+			if ($j > 1) continue;	
+			
+			$rows[$i]->time_fmt = date("d/m/Y H:i:s", $time);
+			$rows[$i]->delays = $delays[$j];
+			
+			if ($rows[$i]->user_agent == $this->config->item("GPSANDALASID"))
+			{
+				$datas['gpsandalas'][] = $rows[$i];
+			}
+			else
+			{
+				$datas['lacakmobil'][] = $rows[$i];
+			}						
+		}
+		
+		if (! isset($datas)) return;
+
+		unset($params);		
+		$params['datas'] = $datas['gpsandalas'];
+		$html = $this->load->view("sms/delayalert", $params, TRUE);
+
+		$mail['format'] = "html";
+		$mail['subject'] = sprintf("data delay alert");
+		$mail['message'] = $html;
+		$mail['dest'] = "norman_ab@gpsandalas.com,zad_anwar@gpsandalas.com,owner@adilahsoft.com";		
+		
+		lacakmobilmail($mail);
+
+		unset($params);
+		$params['datas'] = $datas['lacakmobil'];
+		$html = $this->load->view("sms/delayalert", $params, TRUE);
+
+		$mail['format'] = "html";
+		$mail['subject'] = sprintf("data delay alert");
+		$mail['message'] = $html;
+		$mail['dest'] = "prastgtx@gmail.com,owner@adilahsoft.com"; 
+	
+		lacakmobilmail($mail);		
+		
+	}
+	
+	function restartvehicle($nextyellow=30)
+	{
+		$try = 0;
+		while($this->dorestartvehicle($nextyellow))
+		{
+			if (++$try > 5000) break;
+		}		
+	}
+	
+	function dorestartvehicle($nextyellow=15)
+	{
+		$this->db->where("config_name", "lastrestart");
+		$q = $this->db->get("config");
+		
+		if ($q->num_rows() == 0)
+		{
+			$lastid = 0;
+			$isexist = false;
+		}
+		else
+		{
+			$isexist = true;
+			$row = $q->row();
+			$lastid = $row->config_value;
+		}
+		
+		$this->db->order_by("vehicle_id", "asc");
+		$this->db->limit(1);
+		$this->db->where("vehicle_id >", $lastid);
+		$this->db->where("vehicle_status", 1);
+		$this->db->where("vehicle_active_date2 >=", date("Ymd"));
+		$this->db->join("user", "user_id = vehicle_user_id");
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			$this->updatelastrestart($isexist, 0);			
+			return false;
+		}
+		
+		$row = $q->row();		
+		
+		$this->updatelastrestart($isexist, $row->vehicle_id);
+		
+		// cek terlebih dahulu apakah restart terakhir sudah 30 menit
+
+		$this->db->order_by("logs_created", "desc");
+		$this->db->limit(1);
+		$this->db->where("logs_type", "restartdevice");
+		$this->db->where("logs_content", $row->vehicle_device);
+		$q = $this->db->get("logs");
+		if ($q->num_rows() > 0)
+		{
+			$rowlog = $q->row();
+			$time = dbmaketime($rowlog->logs_created);
+			
+			if ($time+30*60 > mktime()) 
+			{
+				echo "baru saja direstart.\n";
+				return true;
+			}
+		}
+		
+		printf("%s %s...\r\n", $row->user_login, $row->vehicle_no);		
+		$tablegps = $this->gpsmodel->getGPSTable($row->vehicle_type);
+		
+		if (! $tablegps) 
+		{
+			echo "table tidak terdefinisi\n";
+			return true;
+		}
+		
+		$devices = explode("@", $row->vehicle_device);
+		if (count($devices) < 2) 
+		{
+			echo "error device id\n";
+			return true;
+		}
+		
+		$this->db->limit(1);
+		$this->db->order_by("gps_time", "desc");
+		$this->db->where("gps_name", $devices[0]);
+		$this->db->where("gps_host", $devices[1]);
+		
+		$q = $this->db->get($tablegps);
+		if ($q->num_rows() == 0) 
+		{
+			echo "data not found\n";
+			return true;
+		}
+
+		$rowgps = $q->row();
+		
+		$css_tracker_delay = $this->config->item("css_tracker_delay");
+		$late = ($css_tracker_delay[1][0]-$nextyellow)*60;
+		
+		$time = dbmaketime($rowgps->gps_time)+7*3600;
+		$delta = mktime()-$time;
+		if ($delta < $late) 
+		{
+			echo "updated.\n";
+			return true;
+		}
+		
+		// send restart
+		
+		$restart = $this->smsmodel->restart($row->vehicle_type, $row->vehicle_operator);
+		
+		if (strlen($restart) == 0)
+		{
+			echo "not support\n";
+			return true;
+		}
+		
+		if (strcasecmp($restart, "NOT SUPPORT") == 0)
+		{
+			$mail['subject'] = sprintf("operator dengan no sim card %s tidak support restart via sms", $row->vehicle_card_no);
+			$mail['message'] = "pastikan memasukkan nama operator yang benar di form kendaraan";
+			$mail['dest'] = "prastgtx@gmail.com,owner@adilahsoft.com"; 
+			
+			lacakmobilmail($mail);
+			return true;					
+		}
+
+		$hp = valid_mobile($row->vehicle_card_no);
+		
+		if (! $hp) 
+		{
+			printf("invalid no: %s\r\n", $hp);
+			return true;
+		}
+
+		$xml = sprintf("%s\1%s", $row->vehicle_card_no, $restart);
+		printf("%s\n", $xml);
+		$this->smsmodel->sendsms($xml, 1);
+	
+		unset($update);
+		
+		$update['logs_type'] = "restartdevice";
+		$update['logs_created'] = date("Y-m-d H:i:s");
+		$update['logs_content'] = $row->vehicle_device;
+		
+		if (isset($rowlog))
+		{
+			$this->db->where("logs_content", $row->vehicle_device);
+			$this->db->update("logs", $update);
+			
+			return false;
+		}
+			
+		$this->db->insert("logs", $update);
+		return false;
+	}
+	
+	function updatelastrestart($isexist, $nextid)
+	{
+		unset($update);
+		
+		$update['config_name'] = "lastrestart";
+		$update['config_value'] = $nextid;
+		$update['config_lastmodified'] = date("Y-m-d H:i:s");
+		$update['config_lastmodifier'] = 0;
+		
+		if ($isexist)
+		{
+			$this->db->where("config_name", "lastrestart");
+			$this->db->update("config", $update);
+		}
+		else
+		{
+			$this->db->insert("config", $update);
+		}
+	}
+	
+	function geofencealert()
+	{
+		$time = mktime();
+		for($i=0; $i < 50; $i++)
+		{
+			$this->dogeofencealert();
+			$delta = mktime()-$time;
+			if ($delta >= 40) break;
+		}
+	}
+	
+	function dogeofencealert($host="", $name='')
+	{
+		// hindari overlapping cron
+		
+		$this->db->where("config_name", "geofencealertprocessing");
+		$q = $this->db->get("config");
+		
+		if ($q->num_rows())
+		{
+			$row = $q->row();
+			
+			if ($row->config_value == 1) 
+			{				
+				$t = dbmaketime($row->config_lastmodified);
+				$delta = mktime()-$t;
+				
+				if ($delta > 3600)
+				{
+					unset($update);
+					
+					$update['config_value'] = 0;
+					
+					$this->db->where("config_name", "geofencealertprocessing");
+					$this->db->update("config", $update);					
+				}
+				
+				return;						
+			}
+			
+			unset($update);
+			
+			$update['config_value'] = 1;
+			
+			$this->db->where("config_name", "geofencealertprocessing");
+			$this->db->update("config", $update);
+		}
+		else
+		{
+			unset($insert);
+			
+			$insert['config_name'] = "geofencealertprocessing";
+			$insert['config_value'] = 1;
+			
+			$this->db->insert("config", $insert);
+		}
+		
+		// proses hanya 1 kendaraan, optimize consume cpu
+				
+		$this->db->where("config_name", "geofencealert");
+		$q = $this->db->get("config");
+		
+		if ($q->num_rows() == 0)
+		{
+			$offset = 0;
+
+			unset($insert);
+			
+			$insert['config_name'] = "geofencealert";
+			$insert['config_value'] = 1;
+			
+			$this->db->insert("config", $insert);
+		}
+		else
+		{
+			$row = $q->row();
+			$offset = $row->config_value;
+
+			unset($update);
+			
+			$update['config_value'] = $offset+1;
+			
+			$this->db->where("config_name", "geofencealert");
+			$this->db->update("config", $update);
+		}
+		
+		// ambil user yg setting geofence
+		
+		$this->db->distinct();
+		if ($host && $name)
+		{
+			$this->db->where("vehicle_device", sprintf('%s@%s', $host, $name));
+		}
+		$this->db->select("user.*, vehicle.*");
+		$this->db->where("vehicle_status", 1);
+		$this->db->join("vehicle", "vehicle_device = geofence_vehicle");
+		$this->db->join("user", "user_id = vehicle_user_id");
+		$this->db->where("geofence_status", 1);
+		$q = $this->db->get("geofence");
+		
+		if ($q->num_rows() == 0)
+		{
+			echo "tidak ada user yang setting geofence\r\n";
+			$this->geofencealert_release();
+			return;
+		}				
+		
+		$rows = $q->result();				
+		
+		if ($offset >= $q->num_rows())
+		{
+			unset($update);
+			
+			$update['config_value'] = 1;
+			
+			$this->db->where("config_name", "geofencealert");
+			$this->db->update("config", $update);			
+			
+			$offset = 0;
+		}		
+
+		if ($host && $name)
+		{
+			$offset = 0;
+		}
+				
+		$vehicle = $rows[$offset];
+
+		printf("\r\n\r\n[%s] %02d %s %s\r\n", date("Y-m-d H:i:s"), $offset+1, $vehicle->vehicle_device, $vehicle->vehicle_no);
+			
+		$devices = explode("@", $vehicle->vehicle_device);
+		if (count($devices) < 2) 
+		{
+			printf("----- Invalid device\r\n");
+			$this->geofencealert_release();
+			return;
+		}
+			
+		// ambil data terakhir alert geofence
+			
+		$this->db->limit(1);
+		$this->db->order_by("geofence_lastchecked", "desc");		
+		$this->db->where("geoalert_vehicle", $vehicle->vehicle_device);
+		$q = $this->db->get("geofence_alert");
+		if ($q->num_rows() == 0)
+		{
+			$lastdir = -1;
+			$lastchecked = mktime()-7*3600;
+			$lastgeofence = -1;
+		}
+		else
+		{
+			$row = $q->row();				
+			$lastdir = $row->geoalert_direction;
+			$lastchecked = dbmaketime($row->geofence_lastchecked);
+			$geoalert_id = $row->geoalert_id;
+			$lastgeofence = $row->geoalert_geofence;
+			
+			if ($lastchecked < (mktime()-2*24*3600-7*3600))
+			{
+				$lastchecked = mktime()-2*24*3600-7*3600;
+			}
+		}
+
+		// ambil data gps
+			
+		$table_hist = $this->config->item("table_hist");	
+						
+		$tablegps = $this->gpsmodel->getGPSTable($vehicle->vehicle_type);
+		$tablegpshist = $table_hist[strtoupper($vehicle->vehicle_type)];
+		if (! $tablegps) 
+		{
+			printf("----- tabel %s tidak ada\r\n", $tablegps);
+			$this->geofencealert_release();
+			return;
+		}
+		
+		$getgpsstart = mktime();			
+		$tyesterday = mktime(-7, 59, 59, date('n', $getgpsstart), date('j', $getgpsstart), date('Y', $getgpsstart));		
+		
+		if ($lastchecked < $tyesterday)
+		{
+			$sql = sprintf("SELECT * FROM (SELECT * FROM %s%s WHERE (gps_name = '%s') AND (gps_host = '%s') AND (gps_time > '%s') UNION SELECT * FROM %s%s WHERE (gps_name = '%s') AND (gps_host = '%s') AND (gps_time > '%s'))  tbl1 ORDER BY gps_time ASC "
+				, $this->db->dbprefix
+				, $tablegps
+				, $devices[0]
+				, $devices[1]
+				, date("Y-m-d H:i:s", $lastchecked-7*3600)
+				, $this->db->dbprefix
+				, $tablegpshist
+				, $devices[0]
+				, $devices[1]
+				, date("Y-m-d H:i:s", $lastchecked-7*3600)
+
+			);
+			$q = $this->db->query($sql);
+		}
+		else
+		{	
+			$this->db->order_by("gps_time", "asc");					
+			$this->db->where("gps_time >", date("Y-m-d H:i:s", $lastchecked-7*3600));
+			$this->db->where("gps_name", $devices[0]);
+			$this->db->where("gps_host", $devices[1]);
+			$q = $this->db->get($tablegps);			
+		}
+			
+		if ($q->num_rows() == 0) 
+		{
+			printf("----- tidak ada sejak %s\r\n", date("d/m/Y H:i:s", $lastchecked));
+			$this->geofencealert_release();
+			return;
+		}
+			
+		$rowgps = $q->result();
+		
+		printf("----- lama ambil data gps (%d): %d second\r\n", count($rowgps), mktime()-$getgpsstart);
+			
+		$checkarea = mktime();	
+		$found = false;		
+		
+		for($i=0; $i < count($rowgps); $i++)
+		{	
+			$lat = getLatitude($rowgps[$i]->gps_latitude, $rowgps[$i]->gps_ns);
+			$lng = getLongitude($rowgps[$i]->gps_longitude, $rowgps[$i]->gps_ew);
+			
+			$gps = $rowgps[$i];
+			$gps->lat = $lat;
+			$gps->lng = $lng;
+				
+			$sql = sprintf("
+					SELECT 	* 
+					FROM 	%sgeofence 
+					WHERE 	TRUE
+							AND CONTAINS(geofence_polygon, GEOMFROMTEXT('POINT(%s %s)')) 
+							AND (geofence_vehicle = '%s' )
+							AND (geofence_status = 1)
+					LIMIT 1 OFFSET 0", $this->db->dbprefix, $lng, $lat, $vehicle->vehicle_device);
+
+			$q = $this->db->query($sql);
+			
+			if ($q->num_rows() == 0)
+			{
+				if ($lastdir == 2) continue;
+
+				$found = true;
+				break;
+			}
+			
+			if ($lastdir == 1) continue;
+						
+			$rowgeo = $q->row();					
+			$found = true;
+			
+			break;
+		}
+		
+		printf("----- lama check area: %d second\r\n", mktime()-$checkarea);
+		
+		if (! $found) 
+		{
+			unset($update);
+			
+			$t = dbmaketime($rowgps[count($rowgps)-1]->gps_time);
+			$update['geofence_lastchecked'] = date("Y-m-d H:i:s", $t+7*3600);
+			
+			$this->db->where("geoalert_id", $geoalert_id);
+			$this->db->update("geofence_alert", $update);			
+			
+			if ($lastdir == 1)
+			{				
+				printf("----- posisi kendaraan masih didalam area geofence\r\n");
+				$this->geofencealert_release();
+				return;				
+			}
+			
+			printf("----- posisi kendaraan masih di luar area geofence\r\n");
+			$this->geofencealert_release();
+			return;
+		}
+		
+		if ($lastdir != 2)
+		{
+			$this->db->where("geofence_status", 1);
+			$this->db->where("geofence_id", $lastgeofence);
+			$q = $this->db->get("geofence");
+			
+			if ($q->num_rows() > 0)
+			{
+				$rowgeo = $q->row();
+				$this->addgeofencealert($vehicle, 2, $gps, $rowgeo);
+			}
+			else
+			{
+				$this->addgeofencealert($vehicle, 2, $gps, FALSE);
+			}
+			$this->geofencealert_release();			
+			
+			return;
+		}
+		
+		$this->addgeofencealert($vehicle, 1, $gps, $rowgeo);
+		$this->geofencealert_release();			
+	}	
+	
+	function addgeofencealert($vehicle, $direction, $gps, $geofence)
+	{
+		unset($insert);
+			
+		$insert['geoalert_vehicle'] = $vehicle->vehicle_device;
+		$insert['geoalert_direction'] = $direction;
+		$insert['geoalert_time'] = date("Y-m-d H:i:s", dbmaketime($gps->gps_time)+7*3600);
+		$insert['geoalert_lat'] = $gps->lat;
+		$insert['geoalert_lng'] = $gps->lng;
+		$insert['geoalert_geofence'] = ($geofence === FALSE) ? 0 : $geofence->geofence_id;
+		$insert['geofence_created'] = date("Y-m-d H:i:s");
+		$insert['geofence_lastchecked'] = $insert['geoalert_time'];
+			
+		$this->db->insert("geofence_alert", $insert);		
+		
+		$hp = valid_mobile($vehicle->user_mobile);
+		
+		$t = dbmaketime($gps->gps_time)+7*3600;
+			
+		if ($direction == 2)
+		{
+			if ($geofence === FALSE)
+			{
+				$geofence_name = "geofence";				
+			}
+			else
+			{
+				$geofence_name = strlen($geofence->geofence_name) ? $geofence->geofence_name : "geofence";
+			}
+			
+			$params['content'] = sprintf($this->config->item("SMS_ALERT_GEOFENCE_OUT"), date("d/m/Y H:i:s", $t), $vehicle->vehicle_no, $geofence_name, $vehicle->user_login, $vehicle->vehicle_no);
+			$contentmail = sprintf($this->config->item("MAIL_ALERT_GEOFENCE_OUT"), date("d/m/Y H:i:s", $t), $vehicle->vehicle_no, $geofence_name);
+		}
+		else
+		{
+			$geofence_name = strlen($geofence->geofence_name) ? $geofence->geofence_name : "geofence";
+			$params['content'] = sprintf($this->config->item("SMS_ALERT_GEOFENCE_IN"), date("d/m/Y H:i:s", $t), $vehicle->vehicle_no, $geofence_name, $vehicle->user_login, $vehicle->vehicle_no);
+			$contentmail = sprintf($this->config->item("MAIL_ALERT_GEOFENCE_IN"), date("d/m/Y H:i:s", $t), $vehicle->vehicle_no, $geofence_name);
+		}
+		
+		if (valid_email($vehicle->user_mail))
+		{
+			unset($mail);
+			
+			$mail['subject'] = sprintf("Geofence Alert: %s", $vehicle->vehicle_no);
+			$mail['message'] = $contentmail;
+			$mail['dest'] = $vehicle->user_mail; 
+			$mail['bcc'] = "owner@adilahsoft.com";
+			$mail['sender'] = "support@lacak-mobil.com";
+			
+			printf("----- sending email to %s %s %s\r\n", $mail['dest'], $mail['subject'], $mail['message']);
+			
+			lacakmobilmail($mail);			
+		}
+
+		if (! isON($vehicle->user_sms_notifikasi, 15))
+		{
+			print("----- User Disable SMS Notifikasi\r\n");
+			return;
+		}
+		
+
+		if (! $hp) 
+		{
+			print("----- Invalid user mobile\r\n");
+			return;
+		}
+			
+		$params['dest'] = array($hp);	
+		$xml = $this->load->view("sms/send", $params, true);
+		printf("%s\r\n", $xml);						
+		$this->smsmodel->sendsms($xml);		
+	}
+	
+	function geofencealert_release()
+	{
+		$update['config_value'] = 0;
+		
+		$this->db->where("config_name", "geofencealertprocessing");
+		$this->db->update("config", $update);		
+	}
+	
+	function speedalert()
+	{
+		
+		//date_default_timezone_set('Asia/Jakarta');
+		
+		$this->db->where("config_name", "lastspeed");
+		$q = $this->db->get("config");
+		
+		$rowlast = $q->row();
+		$lastrunning = dbmaketime($rowlast->config_value)-7*3600;
+		
+		$this->db->order_by("logs_created", "asc");
+		$this->db->where("logs_type", "speedalert");
+		$q = $this->db->get("logs");
+		
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			$speedalert[$rows[$i]->logs_content] = dbmaketime($rows[$i]->logs_created);
+		}
+
+		$this->db->where("vehicle_maxspeed >", 0);
+		$this->db->where("vehicle_status", 1);
+		$this->db->join("user", "user_id = vehicle_user_id");
+		$q = $this->db->get("vehicle");
+		
+		$rows = $q->result();
+
+		unset($update);
+		$update['config_value'] = date("Y-m-d H:i:s", mktime());
+		$this->db->where("config_name", "lastspeed");
+		$this->db->update("config", $update);
+
+		for($i=0; $i < count($rows); $i++)
+		{
+			printf("%04d %s %s %skph...\r\n", $i+1, $rows[$i]->user_login, $rows[$i]->vehicle_no, $rows[$i]->vehicle_maxspeed);
+			
+			$hp = valid_mobile($rows[$i]->user_mobile);			
+			
+			$tablegps = $this->gpsmodel->getGPSTable($rows[$i]->vehicle_type);
+			$devices = explode("@", $rows[$i]->vehicle_device);
+			
+			$this->db->order_by("gps_time", "desc");				
+			$this->db->where("gps_time >=", date("Y-m-d H:i:s", $lastrunning-7*3600));
+			$this->db->where("gps_name", $devices[0]);
+			$this->db->where("gps_host", $devices[1]);
+			$this->db->where("gps_speed*1.852 >=", $rows[$i]->vehicle_maxspeed, false);
+			
+			$q = $this->db->get($tablegps);
+			if ($q->num_rows() > 0) 
+			{				
+				$rowgps = $q->result();
+				for($j=0; $j < count($rowgps); $j++)
+				{
+					$row = $rowgps[$j];
+					
+					$t = dbmaketime($row->gps_time)+7*3600;
+					$device = sprintf("%s@%s", $row->gps_name, $row->gps_host);
+					$isspeedalert = false;
+					
+					if (! isset($speedalert[$device]))
+					{
+						$speedalert[$device] = $t;
+						$isspeedalert = true;
+					}
+					else
+					{
+						$delta = $t - $speedalert[$device];
+						$isspeedalert = $delta > 3600;
+					}
+					
+					if ($isspeedalert)
+					{
+						// send sms max alert
+						
+						unset($insert);
+
+						$insert['speed_alert_device'] = $rows[$i]->vehicle_device;
+						$insert['speed_alert_time'] = date("Y-m-d H:i:s", $t);
+						$insert['speed_alert_speed'] = $row->gps_speed*1.852;
+						$insert['speed_alert_max'] = $rows[$i]->vehicle_maxspeed;
+						$insert['speed_alert_created'] = date("Y-m-d H:i:s");
+						
+						$this->db->insert("speed_alert", $insert);
+						
+						unset($insert);
+						
+						$insert['logs_type'] = "speedalert";
+						$insert['logs_created'] = date("Y-m-d H:i:s");
+						$insert['logs_content '] = $device;
+						
+						$this->db->insert("logs", $insert);
+						
+						if (valid_email($rows[$i]->user_mail))
+						{
+							unset($mail);
+							
+							$mail['subject'] = sprintf("Speed Alert: %s", $rows[$i]->vehicle_no);
+							$mail['message'] = sprintf($this->config->item("MAIL_ALERT_MAX_SPEED"), date("d/m/Y H:i:s", $t), $rows[$i]->vehicle_no, $row->gps_speed*1.852, $rows[$i]->vehicle_maxspeed);
+							$mail['dest'] = $rows[$i]->user_mail; 
+							$mail['bcc'] = "owner@adilahsoft.com";
+							$mail['sender'] = "support@lacak-mobil.com";
+							
+							lacakmobilmail($mail);
+						}
+						
+						if ($hp && isON($rows[$i]->user_sms_notifikasi, 14))
+						{						
+							$params['content'] = sprintf($this->config->item("SMS_ALERT_MAX_SPEED"), date("d/m/Y H:i:s", $t), $rows[$i]->vehicle_no, $row->gps_speed*1.852, $rows[$i]->vehicle_maxspeed);
+							$params['dest'] = array($hp);	
+							$xml = $this->load->view("sms/send", $params, true);
+							
+							$this->smsmodel->sendsms($xml);	
+						}
+						
+						$speedalert[$device] = mktime();
+					}
+				}
+			}
+		}
+	}
+
+	
+	function pulsealert($issummary = 1, $minpulsa = 1000, $masaaktifexpired=3)
+	{
+		$pulsetype = $this->config->item("vehicle_pulse");
+		$pulsetype = array_merge($pulsetype, $this->config->item("vehicle_T1"));
+
+		$this->db->order_by("logs_created", "asc");
+		$this->db->where_in("logs_type", array("pulsealert", "masaaktifalert"));
+		$this->db->where("logs_created >", date("Y-m-d 00:00:00"));
+		$q = $this->db->get("logs");
+		
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			if ($rows[$i]->logs_type == "pulsealert")
+			{
+				$pulsealert[$rows[$i]->logs_content] = dbmaketime($rows[$i]->logs_created);
+				continue;
+			}
+			
+			$masaaktifalert[$rows[$i]->logs_content] = dbmaketime($rows[$i]->logs_created);
+		}
+		
+		$this->db->where("user_type", 3);
+		$q = $this->db->get("user");
+		$rowagents = $q->result();
+		for($i=0; $i < count($rowagents); $i++)
+		{
+			$hp = valid_mobile($rowagents[$i]->user_mobile);
+			if (! $hp) continue;
+			
+			$agents[$rowagents[$i]->user_agent][] = $hp;
+		}
+	
+		foreach($pulsetype as $val)
+		{	
+			if (! in_array($val, $this->config->item("vehicle_pulse")))
+			{
+				$this->db->where("vehicle_info LIKE", '%"masaaktif"%');
+			}
+			
+			if ($issummary == 0)
+			{								
+				$this->db->where("agent_alert_pulsa", 1);
+			}
+			
+			$this->db->where("vehicle_type", $val);	
+			$this->db->where("vehicle_status", 1);
+			$this->db->join("user", "user_id = vehicle_user_id");
+			$this->db->join("agent", "agent_id = user_agent");
+			$q = $this->db->get("vehicle");
+			
+			if ($q->num_rows() == 0) continue;
+			
+			$tableinfogps = $this->gpsmodel->getGPSInfoTable($val);
+			
+			$rows = $q->result();
+
+			$i = 0;
+			foreach($rows as $row)
+			{
+				printf("%04d. %s %s ...\r\n", ++$i, $row->user_login, $row->vehicle_no);
+
+				$hp = valid_mobile($row->user_mobile);
+				if ((! $hp)  && (! isset($agents[$row->user_agent])))
+				{
+					continue;
+				}
+
+				if (! in_array($val, $this->config->item("vehicle_pulse")))
+				{
+					$json = json_decode($row->vehicle_info);
+					
+					if (strlen($json->masaaktif) == 6)
+					{
+						$masaaktif = dbintmaketime1($json->masaaktif, 0);
+					}
+					else
+					{
+						$masaaktif = dbintmaketime2($json->masaaktif, 0);
+					}
+					
+					$rowinfo->pulsa = $json->sisapulsa;
+					$rowinfo->masaaktif = $masaaktif;					
+				}
+				else
+				{					
+					$this->db->limit(1);
+					$this->db->select("CONV(SUBSTRING(gps_info_ad_input, 6), 16, 10) masaaktif, CONV(SUBSTRING(gps_info_ad_input, 1, 5), 16, 10) pulsa", false);
+					$this->db->order_by("gps_info_time", "desc");				
+					$this->db->where("gps_info_device", $row->vehicle_device);
+					$q = $this->db->get($tableinfogps);
+					
+					if ($q->num_rows() == 0) continue;
+					
+					$rowinfo = $q->row();	
+					
+					$masaaktif = dbintmaketime1($rowinfo->masaaktif, 0);
+					$row->masaaktif = $masaaktif;
+					
+				}
+								
+				$nextexpired = $masaaktif-$masaaktifexpired*24*3600;				
+				$deltamasaaktif = $nextexpired-mktime();
+				
+				//printf("masa aktif: %s\r\n", date("d/m/Y", $masaaktif));
+				
+				if ($masaaktif && ($deltamasaaktif <= 0) && ($deltamasaaktif >= -1*$masaaktifexpired*24*3600))
+				{
+					if ($row->user_agent == $this->config->item("GPSANDALASID"))
+					{
+						$masaaktifalertgpsandalas[] = $row;
+					}
+					else
+					{
+						$masaaktifalertlacakmobil[] = $row;
+					}
+					
+					if (! isset($masaaktifalert[$row->vehicle_device]))
+					{
+						unset($insert);
+						
+						$insert['logs_type'] = "masaaktifalert";
+						$insert['logs_created'] = date("Y-m-d H:i:s");
+						$insert['logs_content'] = $row->vehicle_device;
+						
+						$this->db->insert("logs", $insert);
+					}
+					else
+					{					
+						$delta = mktime() - $masaaktifalert[$row->vehicle_device];
+						if ($delta < (24*3600)) continue;
+						
+						unset($update);
+						
+						$update['logs_created'] = date("Y-m-d H:i:s");
+						
+						$this->db->where("logs_type", "masaaktifalert");
+						$this->db->where("logs_content", $row->vehicle_device);
+						$this->db->update("logs", $update);										
+					}
+					
+					$masaaktifalert[$row->vehicle_device] = mktime();
+/*
+					// send sms
+					
+					unset($params);
+					$params['content'] = sprintf("Masa aktif kartu GSM (%s) pada kendaraan %s adalah %s. Silahkan untuk mengisi ulang pulsa. ", $row->vehicle_card_no, $row->vehicle_no, date("d/m/Y", $masaaktif));
+					
+					if ($row->user_payment_pulsa)
+					{
+						$params['dest'] = array($hp);	
+					}
+					else
+					if (isset($agents[$rows->user_agent]))
+					{						
+						$params['dest'] = $agents[$rows->user_agent];
+					}
+					
+					$xml = $this->load->view("sms/send", $params, true);					
+					$this->smsmodel->sendsms($xml);	
+*/					
+				}
+				
+				if ($rowinfo->pulsa > $minpulsa) continue;
+
+				$row->pulsa = $rowinfo->pulsa;				
+				if ($row->user_agent == $this->config->item("GPSANDALASID"))
+				{
+					$alertgpsandalas[] = $row;
+				}
+				else
+				{
+					$alertlacakmobil[] = $row;
+				}
+				
+				// send sms
+				
+				if (! isset($pulsealert[$row->vehicle_device]))
+				{
+					unset($insert);
+					
+					$insert['logs_type'] = "pulsealert";
+					$insert['logs_created'] = date("Y-m-d H:i:s");
+					$insert['logs_content'] = $row->vehicle_device;
+					
+					$this->db->insert("logs", $insert);
+				}
+				else
+				{					
+					$delta = mktime() - $pulsealert[$row->vehicle_device];
+					if ($delta < (24*3600)) continue;
+					
+					unset($update);
+					
+					$update['logs_created'] = date("Y-m-d H:i:s");
+					
+					$this->db->where("logs_type", "pulsealert");
+					$this->db->where("logs_content", $row->vehicle_device);
+					$this->db->update("logs", $update);										
+				}
+				
+				$pulsealert[$row->vehicle_device] = mktime();
+				
+				// send sms
+				
+				if ($issummary == 0)
+				{
+					unset($destnumbers);
+					
+					if ($row->user_payment_pulsa)
+					{
+						if (! $hp)
+						{
+							$destnumbers = $agents[$row->user_agent];
+						}
+						else
+						{
+							$destnumbers = array($hp);
+						}
+					}
+					else
+					if (isset($agents[$row->user_agent]))
+					{
+						$destnumbers = $agents[$row->user_agent];
+					}
+					
+					if (isset($destnumbers))
+					{					
+						$params['content'] = sprintf("Pulsa kartu GSM %s pada kendaraan %s tinggal Rp %d. Silahkan untuk mengisi ulang kembali. ", $row->vehicle_card_no, $row->vehicle_no, number_format($row->pulsa, 0, "", ","));
+						$params['dest'] = $destnumbers;
+						$xml = $this->load->view("sms/send", $params, true);
+						
+						$this->smsmodel->sendsms($xml);	
+					}
+				}
+			}					
+		}
+		
+		if (! $issummary) return;
+		
+		if (isset($alertgpsandalas))
+		{
+			$i = 0;
+			$message = sprintf("Berikut daftar kendaraan dimana pulsa < %d\r\n", $minpulsa);
+			foreach($alertgpsandalas as $val)
+			{
+				$message .= sprintf("%03d %s %s Rp. %s\r\n", ++$i, $val->user_login, $val->vehicle_no, number_format($val->pulsa, 0, "", ","));
+			}
+			
+			$mail['subject'] = sprintf("alert pulsa");
+			$mail['message'] = $message;
+			$mail['dest'] = "norman_ab@gpsandalas.com,zad_anwar@gpsandalas.com,owner@adilahsoft.com";
+			
+			lacakmobilmail($mail);			
+		}
+		
+		if (isset($alertlacakmobil))
+		{
+			$i = 0;
+			$message = sprintf("Berikut daftar kendaraan dimana pulsa < %d\r\n", $minpulsa);
+			foreach($alertlacakmobil as $val)
+			{
+				$message .= sprintf("%03d %s %s Rp. %s\r\n", ++$i, $val->user_login, $val->vehicle_no, number_format($val->pulsa, 0, "", ","));
+			}
+			
+			$mail['subject'] = sprintf("alert pulsa");
+			$mail['message'] = $message;
+			$mail['dest'] = "prastgtx@gmail.com,owner@adilahsoft.com"; 
+			
+			lacakmobilmail($mail);			
+		}
+
+		if (isset($masaaktifalertgpsandalas))
+		{
+			$i = 0;
+			$message = sprintf("Berikut daftar kendaraan dimana masa aktif akan habis %s hari lagi\r\n", $masaaktifexpired);
+			foreach($masaaktifalertgpsandalas as $val)
+			{
+				$message .= sprintf("%03d %s %s %s\r\n", ++$i, $val->user_login, $val->vehicle_no, date("Y-m-d", $val->masaaktif));
+			}
+			
+			$mail['subject'] = sprintf("alert pulsa");
+			$mail['message'] = $message;
+			$mail['dest'] = "norman_ab@gpsandalas.com,zad_anwar@gpsandalas.com,owner@adilahsoft.com";
+			
+			lacakmobilmail($mail);			
+		}
+
+		if (isset($masaaktifalertlacakmobil))
+		{
+			$i = 0;
+			$message = sprintf("Berikut daftar kendaraan dimana masa aktif akan habis %s lagi\r\n", $masaaktifexpired);
+			foreach($masaaktifalertlacakmobil as $val)
+			{
+				$message .= sprintf("%03d %s %s %s\r\n", ++$i, $val->user_login, $val->vehicle_no, date("Y-m-d", $val->masaaktif));
+			}
+			
+			$mail['subject'] = sprintf("alert pulsa");
+			$mail['message'] = $message;
+			$mail['dest'] = "prastgtx@gmail.com,owner@adilahsoft.com"; 
+			
+			lacakmobilmail($mail);			
+		}
+
+	}
+	
+	function freespace()
+	{
+		$df_c = disk_free_space("C:");
+
+		$i = 0;
+		while(1)
+		{			
+			if ($df_c < 1024) break;
+			
+			$df_c = round($df_c/1024);
+			$i++;
+			
+			if ($i >= 4) break;
+		}
+		
+		switch($i)
+		{
+			case 0:
+				$free = sprintf("%s bytes", number_format($df_c, 0, "", "."));
+			break;
+			case 1:
+				$free = sprintf("%s KB", number_format($df_c, 0, "", "."));
+			break;
+			case 2:
+				$free = sprintf("%s MB", number_format($df_c, 0, "", "."));
+			break;
+			case 3:
+				$free = sprintf("%s GB", number_format($df_c, 0, "", "."));
+			break;
+			case 4:
+				$free = sprintf("%s TB", number_format($df_c, 0, "", "."));
+			break;
+
+		}
+		
+		$message = sprintf("Free space pada dir C adalah %s
+		
+		schedule per minggu:
+		1. zip log-log yang bukan hari ini  pada c:\service\
+		2. hapus log-log yang sudah di zip
+		3. pindahkan zip ke d:/logarchive. untuk penamaan zip, lihat pada zip yang sudah ada.
+				
+		
+		", $free);
+	
+		
+		$mail['format'] = "html";
+		$mail['subject'] = sprintf("space colo 1");
+		$mail['message'] = nl2br($message);
+		$mail['dest'] = "prastgtx@gmail.com,owner@adilahsoft.com"; 
+		
+		lacakmobilmail($mail);			
+		
+	}
+	
+	function parkalert()
+	{
+		$this->db->where("config_name", "parkalert");
+		$q = $this->db->get("config");
+		
+		$rowlast = $q->row();
+		$lastrunning = dbmaketime($rowlast->config_value);
+		
+		echo "config: ".date("d/m/Y H:i:s", $lastrunning)."\r\n";
+		
+		$this->db->order_by("logs_created", "asc");
+		$this->db->where("logs_type", "parkalert");
+		$q = $this->db->get("logs");
+		
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			$parkalert[$rows[$i]->logs_content] = dbmaketime($rows[$i]->logs_created);
+		}
+
+		$this->db->where("vehicle_maxparking >", 0);
+		$this->db->where("vehicle_status", 1);
+		$this->db->join("user", "user_id = vehicle_user_id");
+		$q = $this->db->get("vehicle");
+		
+		$rows = $q->result();
+
+		unset($update);
+		$update['config_value'] = date("Y-m-d H:i:s", mktime());
+		$this->db->where("config_name", "parkalert");
+		$this->db->update("config", $update);
+
+		for($i=0; $i < count($rows); $i++)
+		{
+			printf("%04d %s %s %sm...\r\n", $i+1, $rows[$i]->user_login, $rows[$i]->vehicle_no, $rows[$i]->vehicle_maxparking);
+			
+			$maxpark = $rows[$i]->vehicle_maxparking*60;
+			
+			$tablegps = $this->gpsmodel->getGPSTable($rows[$i]->vehicle_type);
+			$devices = explode("@", $rows[$i]->vehicle_device);
+			$this->db->order_by("gps_time", "asc");				
+			$this->db->where("gps_time >=", date("Y-m-d H:i:s", $lastrunning-7*3600));
+			$this->db->where("gps_name", $devices[0]);
+			$this->db->where("gps_host", $devices[1]);			
+			$q = $this->db->get($tablegps);
+			
+			if ($q->num_rows() == 0) continue;
+			
+			$rowgps = $q->result();
+			
+			printf("=== %d record\r\n", count($rowgps)); 
+			
+			$this->db->where("parkir_device", $rows[$i]->vehicle_device);
+			$q = $this->db->get("parkir");
+			
+			if ($q->num_rows() == 0)
+			{
+				$lastlat = -999999;
+				$lastlng = -999999;
+				$lastpark = 0;
+			}
+			else
+			{
+				$rowparkir = $q->row();
+				
+				$lastlat = $rowparkir->parkir_lat;
+				$lastlng = $rowparkir->parkir_lng;
+				$lastpark = dbmaketime($rowparkir->parkir_time);
+				
+				printf("=== last: %s,%s %s\r\n", $lastlat, $lastlng, date("d/m/Y H:i:s", $lastpark+7*3600)); 
+			}
+			
+			// looping data
+						
+			for($j=0; $j < count($rowgps); $j++)
+			{
+				$lat = sprintf("%.4f", getLatitude($rowgps[$j]->gps_latitude, $rowgps[$j]->gps_ns));
+				$lng = sprintf("%.4f", getLongitude($rowgps[$j]->gps_longitude, $rowgps[$j]->gps_ew));
+
+				if (($lat == $lastlat) && ($lastlng == $lng)) 
+				{					
+					if (($j+1) == count($rowgps))
+					{
+						$t = dbmaketime($rowgps[$j]->gps_time);
+						$parklength = $t-$lastpark;						
+						
+						printf("=== current=%d s <-> max=%d s\r\n", $parklength, $maxpark);
+						
+						if ($parklength < $maxpark)
+						{
+							continue;
+						}
+						
+						// alert park
+						
+						$lastpark = $t;
+						$this->doalertpark($rows[$i], $rowgps[$j], $parklength, &$parkalert);
+					}
+					
+					continue;
+				}			
+				
+				$lastlat = $lat;
+				$lastlng = $lng;
+				
+				$prevpark = $lastpark;
+				$lastpark = dbmaketime($rowgps[$j]->gps_time);
+				
+				if ($j == 0)
+				{					
+					continue;
+				}
+				
+				$t = dbmaketime($rowgps[$j-1]->gps_time);
+				$parklength = $t-$prevpark;
+				
+				printf("=== current=%d s <-> max=%d s\r\n", $parklength, $maxpark);
+				
+				if ($parklength < $maxpark)
+				{
+					continue;
+				}
+				
+				// alert park
+				
+				$this->doalertpark($rows[$i], $rowgps[$j-1], $parklength, &$parkalert);
+			}
+			
+			$this->db->where("parkir_device", $rows[$i]->vehicle_device);
+			$total = $this->db->count_all_results("parkir");
+			
+			unset($update);
+			
+			$update['parkir_device'] = $rows[$i]->vehicle_device;
+			$update['parkir_lat'] = $lastlat;
+			$update['parkir_lng'] = $lastlng;
+			$update['parkir_time'] = date("Y-m-d H:i:s", $lastpark);
+			
+			if ($total > 0)
+			{
+				$this->db->where("parkir_device", $rows[$i]->vehicle_device);
+				$this->db->update("parkir", $update);
+			}
+			else
+			{
+				$this->db->insert("parkir", $update);
+			}
+		}
+	}
+	
+	function doalertpark($vehicle, $gps, $parklength, $parkalert)
+	{
+		$isparkalert = false;
+
+		if (! isset($parkalert[$vehicle->vehicle_device]))
+		{
+			$parkalert[$vehicle->vehicle_device] = $t;
+			$isparkalert = true;
+		}
+		else
+		{
+			$delta = mktime() - $parkalert[$vehicle->vehicle_device];
+			$isparkalert = $delta > 3600;
+		}
+		
+		if (! $isparkalert) 
+		{
+			printf("=== alerted at %s\r\n", date("d/m/Y H:i:s", $parkalert[$vehicle->vehicle_device]));
+			return;
+		}
+		
+		$t = dbmaketime($gps->gps_time);
+
+		unset($insert);
+		
+		$insert['parkir_alert_device'] = $vehicle->vehicle_device;
+		$insert['parkir_alert_time'] = date("Y-m-d H:i:s", $t);
+		$insert['parkir_alert_length'] = round($parklength/60);
+		$insert['parkir_alert_max'] = $vehicle->vehicle_maxparking;
+		$insert['parkir_alert_created'] = date("Y-m-d H:i:s");
+		
+		$this->db->insert("parkir_alert", $insert);
+
+		
+		if (valid_email($vehicle->user_mail))
+		{
+			unset($mail);
+			
+			$mail['subject'] = sprintf("Parkir Alert: %s", $vehicle->vehicle_no);
+			$mail['message'] = sprintf($this->config->item("MAIL_ALERT_MAX_PARK"), date("d/m/Y H:i:s", $t+7*3600), $vehicle->vehicle_no, round($parklength/60), $vehicle->vehicle_maxparking);
+			$mail['dest'] = $vehicle->user_mail; 
+			$mail['bcc'] = "owner@adilahsoft.com";
+			$mail['sender'] = "support@lacak-mobil.com";
+			
+			lacakmobilmail($mail);								
+		}
+		
+		if (! isON($vehicle->user_sms_notifikasi, 13))
+		{
+			printf("=== notifikasi off\r\n");
+			return;
+		}
+		
+		$hp = valid_mobile($vehicle->user_mobile);
+		if (! $hp) 
+		{
+			printf("=== invalid mobile no: %s\r\n", $vehicle->user_mobile);
+			return;
+		}
+		
+		$content = sprintf($this->config->item("SMS_ALERT_MAX_PARK"), date("d/m/Y H:i:s", $t+7*3600), $vehicle->vehicle_no, round($parklength/60), $vehicle->vehicle_maxparking);
+						
+		$xml = sprintf("%s\1%s", $hp, $content);
+		$this->smsmodel->sendsms($xml);
+							
+		printf("%s\r\n", $xml);
+							
+		$parkalert[$vehicle->vehicle_device] = mktime();
+
+		unset($update);
+							
+		$update['logs_created'] = date("Y-m-d H:i:s");
+		
+		$this->db->where("logs_content", $vehicle->vehicle_device);
+		$this->db->where("logs_type", "parkalert");
+		$this->db->update("logs", $update);
+		
+		if ($this->db->affected_rows() == 0)
+		{
+			unset($insert);
+			
+			$insert['logs_created'] = date("Y-m-d H:i:s");
+			$insert['logs_content'] = $vehicle->vehicle_device;
+			$insert['logs_type'] = "parkalert";
+			
+			$this->db->insert("logs", $insert);
+		}
+		
+	}
+
+	function stop_service()
+	{
+		exec("ps aux | grep java", $results); 
+		
+		for($i=0; $i < count($results); $i++)
+		{
+			$result = $results[$i];
+			$datas = preg_split("/\s+/", $result);
+
+			$id = $datas[1];
+
+			$kill = sprintf("kill -9 %d", $id);
+			
+			printf("%s\n", $kill);
+			system($kill);	
+		}
+	}
+	
+	function oldlink($age=7)
+	{
+		$smscolodb = $this->load->database("smscolo", TRUE);
+		
+		$t = mktime()-$age*24*3600;
+		$smscolodb->where("created <", date("Y-m-d 00:00:00", $t));
+		$smscolodb->delete("link");
+		
+		$this->load->dbutil();		
+		$this->dbutil->optimize_table("link"); 		
+	}
+	
+	function pulseT1()
+	{
+		$this->db->where("vehicle_status", 1);
+		$this->db->where_in("vehicle_type", $this->config->item("vehicle_T1"));
+		$total = $this->db->count_all_results("vehicle");
+
+		$this->db->where("config_name", "pulset1");
+		$q = $this->db->get("config");
+		
+		if ($q->num_rows() == 0)
+		{
+			unset($insert);
+			
+			$insert['config_name'] = 'pulset1';
+			$insert['config_value'] = 0;
+			$insert['config_lastmodified'] = date("Y-m-d H:i:s");
+			
+			$this->db->insert("config", $insert);
+			
+			$offset = 0;
+		}
+		else
+		{
+			$row = $q->row();			
+			$offset = $row->config_value;
+		}
+		
+		if ($offset >= $total)
+		{
+			$offset = 0;
+		}
+		
+		$this->db->limit(1, $offset);
+		$this->db->where("vehicle_status", 1);
+		$this->db->where_in("vehicle_type", $this->config->item("vehicle_T1"));
+		$q = $this->db->get("vehicle");
+
+		if ($q->num_rows() == 0)
+		{
+			$offset = 0;
+		}
+		else
+		{
+			$row = $q->row();
+			
+			$hp = valid_mobile($row->vehicle_card_no);
+			
+			if ($hp)
+			{
+				$cekpulsa = $this->smsmodel->checkpulse($row->vehicle_operator);
+				
+				if ($cekpulsa)
+				{
+					$xml = sprintf("%s\1%s", $row->vehicle_card_no, $cekpulsa);
+					printf("%s %s\n", date("Ymd"), $xml);
+					$this->smsmodel->sendsms($xml, 1);
+				}								
+			}
+			
+			$offset++;
+		}
+		
+		unset($update);
+		
+		$update['config_value'] = $offset;
+		
+		$this->db->where("config_name", "pulset1");
+		$this->db->update("config", $update);
+		
+	}
+
+	function lock($maxspeed = 10)
+	{
+		$this->db->where("vehicle_info LIKE", '%"lock":1%');
+		$this->db->where("vehicle_status", 1);
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			printf("tidak ada kendaraan dengan settingan lock\n");
+			return;
+		}
+		
+		$rows = $q->result();		
+		for($i=0; $i < count($rows); $i++)
+		{
+			// cek engine on?
+			
+			printf("cek %s\r\n", $rows[$i]->vehicle_no);
+			
+			$vtype = strtoupper($rows[$i]->vehicle_type);
+			if (in_array($vtype, $this->config->item("vehicle_gtp")))
+			{
+				$tableinfo = $this->gpsmodel->getGPSInfoTable($vtype);
+				
+				$this->db->order_by("gps_info_time", "DESC");
+				$this->db->where("gps_info_device", $rows[$i]->vehicle_device);
+				$q = $this->db->get($tableinfo, 1, 0);
+				
+				if ($q->num_rows() == 0)
+				{
+					printf("=== tidak ada data info\n");
+					continue;					
+				}
+				
+				$rowinfo = $q->row();
+				
+				$ioport = $rowinfo->gps_info_io_port;				
+				$row->status1 = ((strlen($ioport) > 4) && ($ioport[4] == 1));
+				
+				if (! $row->status1) 
+				{
+					printf("=== mesin mati\n");
+					continue;
+				}
+			}
+			else
+			{
+				// cek kecepatan
+				
+				$tablegps = $this->gpsmodel->getGPSTable($rows[$i]->vehicle_type);
+				$devices = explode("@", $rows[$i]->vehicle_device);
+				
+				$this->db->limit(1);
+				$this->db->order_by("gps_time", "desc");
+				$this->db->where("gps_name", $devices[0]);
+				$this->db->where("gps_host", $devices[1]);
+				$q = $this->db->get($tablegps);
+				
+				if ($q->num_rows() == 0)
+				{
+					printf("=== tidak ada data GPS\n");
+					continue;					
+				}
+				
+				$rowgps = $q->row();				
+				$speed = $rowgps->gps_speed*1.852;
+				
+				if ($speed < $maxspeed)
+				{
+					printf("=== kecepatan dibawah maksimum %d < %d \n", $speed, $maxspeed);
+					continue;										
+				}
+			}
+							
+			// matikan mesin				
+			
+			$command = $this->smsmodel->cutoffengine($rows[$i]->vehicle_type);
+			$gsm = valid_mobile($rows[$i]->vehicle_card_no);
+			
+			if ($gsm)
+			{				
+				$xml = sprintf("%s\1%s", $gsm, $command);
+				printf("%s\n", $xml);
+				$this->smsmodel->sendsms($xml, 1);
+			}				
+			
+			$json = json_decode($rows[$i]->vehicle_info);
+			
+			unset($json->lock);
+			
+			unset($update);
+			$update['vehicle_info'] = json_encode($json);
+
+			$this->db->where("vehicle_id", $rows[$i]->vehicle_id);
+			$this->db->update("vehicle", $update);
+			
+		}
+	}
+	
+	function test()
+	{
+		echo "hello";
+	}
+}
+
+/* End of file welcome.php */
+/* Location: ./system/application/controllers/welcome.php */

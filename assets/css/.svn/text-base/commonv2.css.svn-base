@@ -1,0 +1,93 @@
+#quicklinks {
+    text-align: right;
+}
+
+#quicklinks a:link,
+#quicklinks a:visited {
+    color: white;
+}
+
+body {
+    font-family: arial;
+}
+
+ul.topnav {
+	list-style: none;
+	padding: 0 20 px;
+    margin: 0;
+	margin-left: -20px;
+	float: left;
+	width: 920px;
+    width: 100%;
+	background: #F7941D;
+	font-size: 10pt;
+	background: url(img/topnav_bgv2.gif) repeat-x;
+    z-index: 1000;
+}
+ul.topnav li {
+	float: left;
+	margin: 0;
+	padding: 0 15px 0 0;
+	position: relative; /*--Declare X and Y axis base for sub navigation--*/
+    z-index: 1000;
+    color: #000000;
+}
+ul.topnav li a{
+	padding: 10px 5px;
+	color: #000;
+	display: block;
+	text-decoration: none;
+	float: left;
+    z-index: 1000;
+}
+ul.topnav li a:hover{
+	background: #B1BAC2 no-repeat center top;
+    z-index: 1000;
+    border-left: 1px solid #111;
+    border-right: 1px solid #111;
+}
+ul.topnav li span { /*--Drop down trigger styles--*/
+	width: 17px;
+	height: 35px;
+	float: left;
+	background: url(img/subnav_btn.gif) no-repeat center top;
+    z-index: 1000;
+}
+ul.topnav li span.subhover {background-position: center bottom; cursor: pointer;} /*--Hover effect for trigger--*/
+ul.topnav li ul.subnav {
+	list-style: none;
+	position: absolute; /*--Important - Keeps subnav from affecting main navigation flow--*/
+	left: 0; top: 35px;
+	background: #FFFFE0;
+	margin: 0; padding: 0;
+	display: none;
+	float: left;
+	width: 170px;
+	border-left: 1px solid #111;
+	border-right: 1px solid #111;
+	border-bottom: 1px solid #111;
+    z-index: 1000;
+}
+ul.topnav li ul.subnav li{
+	margin: 0; padding: 0;
+	//border-top: 1px solid #000; /*--Create bevel effect--*/
+	//border-bottom: 1px solid #000; /*--Create bevel effect--*/
+	clear: both;
+	width: 170px;
+    z-index: 1000;
+}
+html ul.topnav li ul.subnav li a {
+	float: left;
+	width: 145px;
+	//background: #B1BAC2 url(img/dropdown_linkbg.gif) no-repeat 10px center;
+	background: #B1BAC2 no-repeat 10px center;
+	padding-left: 20px;
+    z-index: 1000;
+    color: #B90032;
+}
+html ul.topnav li ul.subnav li a:hover { /*--Hover effect for subnav links--*/
+	//background: url(img/panah.gif) no-repeat 10px center;
+	border: 1px solid #111;
+    z-index: 1000;
+}
+ 

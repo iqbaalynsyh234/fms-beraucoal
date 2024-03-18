@@ -1,0 +1,42 @@
+body {
+  font-family:Tahoma;
+}
+
+img {
+  border:0;
+}
+
+#page {
+  width:800px;
+  margin:0 auto;
+  padding:15px;
+  border:1;
+  background-color:white;
+
+}
+
+#logo {
+  float:left;
+  margin:0;
+}
+
+#address {
+  height:181px;
+  margin-left:500px; 
+}
+
+table {
+  width:100%;
+}
+
+td {
+padding:5px;
+}
+
+tr.odd {
+  background:#e1ffe1;
+}
+
+tr.odd2 {
+  background:#99C68E;
+}

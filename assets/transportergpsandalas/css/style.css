@@ -1,0 +1,110 @@
+/*
+Author: TemplateAccess.com (DT/TS)
+*/
+@charset "utf-8";
+body { margin:0; padding:0; width:100%;}
+html { padding:0; margin:0;}
+
+.main { margin:0 auto; padding:10px;  background: url(../images/main_bgbg2.jpg) top center repeat-x;}
+.main2 { margin:0 auto; padding:0; background: url(../images/main_bg2.gif) top center repeat-x;}
+/********** header **********/
+.header {  padding:0; margin:0 auto; width:962px;}
+/* logo */
+.logo {padding:0px 0 0 30px; margin:0; width:220px; float:left;}
+/* Click */
+.rss { width:350px; margin:0; padding:25px 0 0 0; float:left; font: bold 14px Arial, Helvetica, sans-serif; color:#000000; line-height:1.8em;}
+.rss img { float:right; margin:7px 3px; padding:0; }
+/*foot menu*/
+.footmenu { padding:0; margin:0 auto; background: url(../images/menu_resize_bg2.png) top no-repeat; height:90px; width:962px;}
+.footmenu ul { text-align:left;  padding:10px 0 0 0; margin:0; list-style:none; border:0; float:right; width:700px;}
+.footmenu ul li { float:left; margin:0; padding:0 5px; border:0; height:45px;}
+.footmenu ul li a { float:left; margin:0; padding:0; color:#fefefe; font:normal 12px/15px Arial, Helvetica, sans-serif; text-decoration:none; text-transform:uppercase;}
+.footmenu ul li a span { display:block; padding:8px 20px 7px 20px; background:none; }
+.footmenu ul li a small { display:block; font: normal 11px/15px Arial, Helvetica, sans-serif; color:#eea83b; text-transform:none; padding:0; margin:0;}
+.footmenu ul li a:hover { background: url(../images/r_menu.gif) no-repeat right; }
+.footmenu ul li a:hover span { background:url(../images/l_menu.gif) no-repeat left; }
+.footmenu ul li a.active {   background:url(../images/r_menu.gif) no-repeat right; }
+.footmenu ul li a.active span {  background:url(../images/l_menu.gif) no-repeat left; }
+/*head menu*/
+.headmenu { padding:0; margin:0 auto; background: url(../images/menu_resize_bg.png) top no-repeat; height:90px; width:962px;}
+.headmenu ul { text-align:left;  padding:10px 0 0 0; margin:0; list-style:none; border:0; float:right; width:700px;}
+.headmenu ul li { float:left; margin:0; padding:0 5px; border:0; height:45px;}
+.headmenu ul li a { float:left; margin:0; padding:0; color:#fefefe; font:normal 12px/15px Arial, Helvetica, sans-serif; text-decoration:none; text-transform:uppercase;}
+.headmenu ul li a span { display:block; padding:10px 20px 10px 20px; background:none; }
+.headmenu ul li a small { display:block; font: normal 11px/15px Arial, Helvetica, sans-serif; color:#eea83b; text-transform:none; padding:0; margin:0;}
+.headmenu ul li a:hover { background: url(../images/r_menu.gif) no-repeat right; }
+.headmenu ul li a:hover span { background:url(../images/l_menu.gif) no-repeat left; }
+.headmenu ul li a.active {   background:url(../images/r_menu.gif) no-repeat right; }
+.headmenu ul li a.active span {  background:url(../images/l_menu.gif) no-repeat left; }
+/*login menu*/
+.loginmenu { padding:0px; margin:5px auto; width:800px;}
+.loginmenu ul { text-align:right;  padding:0px 0 0 0; margin:0; list-style:none; border:0; float:right; width:483px;}
+.loginmenu ul li { float:left; margin:0; padding:0 5px; border:0; height:45px;}
+.loginmenu ul li a { float:left; margin:0; padding:0; font:bold 12px Arial, Helvetica, sans-serif; color:white; text-decoration:none; text-transform:uppercase;}
+.loginmenu ul li a span { display:block; padding:5px 70px 7px 15px; background:none; }
+.loginmenu ul li a small { display:block; font: normal 11px/15px Arial, Helvetica, sans-serif; color:#eea83b; text-transform:none; padding:0; margin:0;}
+.loginmenu ul li a:hover { background: url(../images/r_menu.gif) no-repeat right; }
+.loginmenu ul li a:hover span { background:url(../images/l_menu.gif) no-repeat left; }
+.loginmenu ul li a.active {   background:url(../images/r_menu.gif) no-repeat left; }
+.loginmenu ul li a.active span {  background:url(../images/l_menu.gif) no-repeat left; }
+/* search */
+.search { padding:25px 0 15px 0; margin:0; width:230px; float:right;}
+.search form { display:block; float:right; padding:0;}
+.search span { display:block; float:left; background: url(../images/search_bg.gif) left top no-repeat; width:178px; padding:0; height:32px;}
+.search form .keywords { width:179px; line-height:14px;  float:left; background:none; border:0; padding:8px 2px 0 10px; margin:0; font:normal 12px Arial, Helvetica, sans-serif; color:#4b4b4b;}
+.search form .button { float:left; margin:0; padding:0;}
+/* click_blog */
+.click_blog { font: italic 12px Arial, Helvetica, sans-serif; color:white; padding:10px 0 0 0; margin:0; line-height:1.8em;}
+.click_blog p { width:670px; float:left; padding:0; margin:0;}
+.click_blog a { color:#ffffff; font-weight:bold; padding:5px; margin:0; text-decoration:none;}
+.click_blog img.floated { float:right; margin:0; padding:5px;}
+.click_blog img { float:right; margin:0; padding:5px;}
+/* FBG */
+.FBG { background:#f0f0f0 url(../images/fbg.gif) top repeat-x; padding:25px 0; margin:0;}
+.FBG_resize { width:960px; margin:0 auto; padding:0;}
+.FBG_resize img { float:left; margin:0; padding:0;}
+.FBG_resize h2 { font: normal 18px Arial, Helvetica, sans-serif; color:#1e1e1e; padding:10px 0 10px 0; margin:0; border-bottom:1px solid #bcbcbc; text-transform:uppercase;}
+.FBG_resize h2 span { font: bold 13px Arial, Helvetica, sans-serif; color:#979797; text-transform:none;}
+.FBG_resize p { color:#979797; font: normal 12px Arial, Helvetica, sans-serif; padding:5px 10px; margin:0; line-height:1.8em;}
+.FBG_resize .blog { width:280px; float:left; margin:0; padding:0 30px 0 0;}
+/* body */
+.body_resize { width:960px; margin:0 auto; padding:0;}
+.body { padding:10px  0; margin:0 auto; border-top:1px solid #efefef; background:#fff;}
+.body h2 { font: normal 18px Arial, Helvetica, sans-serif; color:#1e1e1e; padding:10px 0 10px 0; margin:0 5px; border-bottom:1px solid #bcbcbc; text-transform:uppercase;}
+.body h2 span { font: bold 13px Arial, Helvetica, sans-serif; color:#979797; text-transform:none;}
+.body p { font:normal 12px Arial, Helvetica, sans-serif; color:#979797; line-height:1.8em; padding:10px 5px; margin:0;}
+.body p span { font-size:14px; font-weight:bold; color:#979797;}
+.body a { color:#da6925; text-decoration:none;}
+.body img { margin:5px 0; padding:0; float:left;}
+.body img.floated { float:left; margin:10px 7px; border:1px solid #e4e4e4; padding:5px; background:#f0f0f0;}
+.body img.serv { margin:10px; padding:0 0 30px 0; float:left;}
+.right {  width:630px; margin:0; padding:0; float:left;}
+.right ul { list-style:none; width:200px; float:left; margin:10px; padding:0;}
+.right li { color:#00a2ca; font: normal 12px Arial, Helvetica, sans-serif; padding:3px; margin:0;}
+.left {  width:270px; margin:0; padding:0 20px 0 0; float:right;}
+.port {width:210px; margin:10px 0; padding:0; float:left;}
+/********** contact form **********/
+#contactform { margin:0; padding:5px 10px; }
+#contactform * { color:#F00; }
+#contactform ol { margin:0; padding:0; list-style:none; }
+#contactform li { margin:0; padding:0; background:none; border:none; display:block; clear:both; }
+#contactform li.buttons { margin:5px 0 5px 0; clear:both; }
+#contactform label { margin:0; width:100px; height:30px; display:block; padding:5px 0; color:#5f5f5f; font: normal 12px Arial, Helvetica, sans-serif;  float:left; }
+#contactform label span { color:#d66423; font-weight:bold; }
+#contactform input.text { width:450px; border:1px solid #e8e8e8; margin:2px 0; padding:5px 2px; height:16px; background:#f8f8f8; }
+#contactform textarea { width:450px; border:1px solid #e8e8e8; margin:2px 0; padding:2px; background:#f8f8f8; }
+#contactform li.buttons input { padding:3px 0 3px 100px; margin:10px 0 0 0; border:0; color:#FFF; float:left; }
+/*************footer**********/
+.footer {padding:20px 20px;  margin:0 auto; background:#f0f0f0 url(../images/footer_bg.gif) top repeat-x;}
+.footer_resize { width:960px; margin:0 auto; padding:0;}
+.footer p { font:normal 12px  Arial, Helvetica, sans-serif; color:#737373;}
+.footer a { font:bold 12px Arial, Helvetica, sans-serif; color:#737373; text-decoration:none; }
+.footer p.right { text-align:right; width:350px; margin:0; padding:10px 0 0 0; float:right;} 
+.footer p.left { text-align:left; width:550px; margin:0; padding:10px 0 0 0; float:left;}
+
+p.clr, .clr { clear:both; padding:0; margin:0; background:none;}
+.bg { clear:both; padding:5px 0; margin:0; border-bottom:1px solid #d0d0d0;}
+/* Slider */
+#slider {  width:960px; padding:20px 0 0 0; margin:0 auto;}
+#slider h2 { font: bold italic 30px "Trebuchet MS", Arial, Helvetica, sans-serif; color:#fff; padding:0; margin:0;}
+#slider .flash_slider { width:960px; height:380px; margin:0; overflow:hidden;}

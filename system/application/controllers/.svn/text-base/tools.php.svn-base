@@ -1,0 +1,996 @@
+<?php
+include "base.php";
+
+class Tools extends Base {
+
+	function Tools()
+	{
+		parent::Base();	
+		$this->load->helper("common");
+		$this->load->model("gpsmodel");
+		$this->load->model("smsmodel");
+		$this->load->model("agenmodel");
+	}
+	
+	// routine untuk check apakah vehicle type dengan table gps nya sinkron
+	function checkvtype()
+	{
+		$vtypes = $this->config->item("vehicle_type");
+		if (! is_array($vtypes))
+		{
+			echo "can't found vehicle type";
+			return;
+		}
+		
+		if (! count($vtypes))
+		{
+			echo "can't found vehicle type";
+			return;
+		}
+
+			$this->db->where("vehicle_status", 1);
+			$q = $this->db->get("vehicle");
+
+			if ($q->num_rows() == 0)
+			{
+				echo "can't found vehicle\r\n";
+				return;
+			}
+			
+			$uniqid = uniqid();
+
+			$rows = $q->result();
+			for($i=0; $i < count($rows); $i++)
+			{
+				$tbl = $this->gpsmodel->getGPSTable($rows[$i]->vehicle_type);
+
+				$devices = explode("@", $rows[$i]->vehicle_device, 2);
+
+				$this->db->where("'".$uniqid."'='".$uniqid."'", null, false);
+				$this->db->where("gps_name", $devices[0]);
+				$this->db->where("gps_host", $devices[1]);
+				$tot = $this->db->count_all_results($tbl);
+
+				if ($tot > 0) continue;
+				
+				$realtype = "";
+				foreach($vtypes as $key=>$val)
+				{
+                                	$tbl = $this->gpsmodel->getGPSTable($key);
+
+									$this->db->where("'".$uniqid."'='".$uniqid."'", null, false);
+                                	$this->db->where("gps_name", $devices[0]);
+                                	$this->db->where("gps_host", $devices[1]);
+                                	$tot = $this->db->count_all_results($tbl);
+					
+					if ($tot == 0) continue;
+				
+					$realtype = $key;
+				}
+				
+				if (! $realtype) continue;
+
+				$s = sprintf("%s => %s\r\n", $rows[$i]->vehicle_device, $realtype);
+				echo $s;
+				maillocalhost("vehicle type error", $s, "owner@adilahsoft.com");
+                        }
+	}
+	
+	function geofencespatial()
+	{
+		$this->db->where("geofence_polygon IS NULL", null);
+		$this->db->where("geofence_id >", 11);
+		$q = $this->db->get("geofence");
+		
+		if ($q->num_rows() == 0) 
+		{
+			echo "can't found geofence";
+			return;
+		}
+		
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			$geo = $rows[$i]->geofence_coordinate;
+			
+			$geo = str_replace(" ", "=====", $geo);
+			$geo = str_replace(",", " ", $geo);
+			$geo = str_replace("=====", ", ", $geo);
+			
+			
+			$sql = "UPDATE ".$this->db->dbprefix."geofence SET geofence_polygon = GEOMFROMTEXT('POLYGON((".$geo."))') WHERE geofence_id = '".$rows[$i]->geofence_id."'";
+			echo $sql."\r\n";
+			//$this->db->query($sql);
+			
+		}
+	}
+	
+	function deltrigger()
+	{
+		$this->db->query("DROP TRIGGER t1_oninserted");
+		$this->db->query("DROP TRIGGER t1_1_oninserted");
+		$this->db->query("DROP TRIGGER t1_pln_oninserted");
+		$this->db->query("DROP TRIGGER t3_oninserted");
+		$this->db->query("DROP TRIGGER t4_oninserted");
+		$this->db->query("DROP TRIGGER t4_farrasindo_oninserted");
+		$this->db->query("DROP TRIGGER indogps_oninserted");		
+	}
+
+	function kendaraan_andalas()
+	{
+		$this->db->order_by("user_login", "asc");
+		$this->db->order_by("vehicle_device", "asc");
+		$this->db->order_by("vehicle_no", "asc");
+		$this->db->distinct();
+		$this->db->select("user_login, vehicle_device, vehicle_no");
+		$this->db->where("user_agent", 3);
+		$this->db->where("vehicle_status", 1);
+		$this->db->join("user", "user_id = vehicle_user_id");
+		$q = $this->db->get("vehicle");
+
+		$rows = $q->result();
+
+		header("Content-type: text/text");
+
+		for($i=0; $i < count($rows); $i++)
+		{
+			printf("%s;%s;%s;%s\r\n", $i, $rows[$i]->user_login, $rows[$i]->vehicle_device, $rows[$i]->vehicle_no);
+		}
+	}
+	
+	function address($lng, $lat)
+	{
+		
+	}
+	
+	function yahoo($u, $t=14)
+	{
+		$url = "http://opi.yahoo.com/online?u=".$u."&t=".$t;
+
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_POST, true);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		$img = curl_exec($ch);
+		curl_close($ch);
+
+		header("Content-type: image/gif");
+		header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+		echo $img;
+		exit;
+	}
+	
+	function delcache()
+	{
+		$this->db->cache_delete_all();
+	}	
+	
+	function inithist()
+	{
+		$this->db->where("config_name", "maxhist");
+		$q = $this->db->get("config");
+		$row = $q->row();
+		
+		$t = mktime(-7, 0, 0, date('n')-$row->config_value, date('j'), date('Y'));
+		
+		$tblhists = $this->config->item("table_hist");
+		
+		$this->db->distinct();
+		$this->db->select("vehicle_device, vehicle_type");
+		$q = $this->db->get("vehicle");
+		
+		$rows = $q->result();
+		for($i=0; $i < count($rows); $i++)
+		{
+			$vehicles[$rows[$i]->vehicle_device] = $rows[$i]->vehicle_type;
+		}
+		
+		$offset = 0;
+		$limit = 10000;
+		$j = 0;
+		while(1)
+		{
+			//$this->db->where("gps_id <", 159328293);
+			$this->db->limit($limit, $offset);
+			$this->db->distinct();
+			$this->db->select("gps_name, gps_host, gps_type, gps_utc_coord, gps_status, gps_latitude, gps_ns, gps_longitude, gps_ew, gps_speed, gps_course, gps_utc_date, gps_mvd, gps_mv, gps_cs, gps_msg_ori, gps_time, gps_latitude_real, gps_longitude_real, gps_odometer, gps_workhour");
+			$this->db->order_by("gps_id", "desc");			
+			$q = $this->db->get("gps_hist");
+			
+			$rows = $q->result();
+			
+			if (count($rows) < $limit)
+			{
+				$exit = true;
+			}
+			
+			unset($insert);
+			
+			for($i=0; $i < count($rows); $i++)
+			{			
+				
+				$t1 = dbmaketime($rows[$i]->gps_time);
+				
+				if ($t1 < $t)
+				{
+					$j++;
+					//printf("Vehicle < %d month \r\n", $row->config_value);
+					continue;
+					//$exit = true;
+					//break;
+				}
+				
+				//printf("Processing....%d. %s@%s\r\n", $j+1, $rows[$i]->gps_name, $rows[$i]->gps_host);
+				if (! isset($vehicles[$rows[$i]->gps_name.'@'.$rows[$i]->gps_host]))
+				{
+					//printf("Vehicle tidak ditemukan\r\n");
+					$j++;
+					continue;
+				}
+				
+				if (! isset($tblhists[strtoupper($vehicles[$rows[$i]->gps_name.'@'.$rows[$i]->gps_host])]))
+				{
+					//printf("Tabel hist tidak ditemukan\r\n");
+					$j++;
+					continue;
+				}
+				
+				$tblhist = $tblhists[strtoupper($vehicles[$rows[$i]->gps_name.'@'.$rows[$i]->gps_host])];
+				
+				if (! isset($insert[$tblhist]))
+				{				
+					$sql = sprintf
+					("
+						INSERT INTO %s%s (gps_name, gps_host, gps_type, gps_utc_coord, gps_status, gps_latitude, gps_ns, gps_longitude, gps_ew, gps_speed, gps_course, gps_utc_date, gps_mvd, gps_mv, gps_cs, gps_msg_ori, gps_time, gps_latitude_real, gps_longitude_real, gps_odometer, gps_workhour)
+						VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
+					", $this->db->dbprefix, $tblhist
+					, $rows[$i]->gps_name, $rows[$i]->gps_host, $rows[$i]->gps_type, $rows[$i]->gps_utc_coord, $rows[$i]->gps_status, $rows[$i]->gps_latitude
+					, $rows[$i]->gps_ns, $rows[$i]->gps_longitude, $rows[$i]->gps_ew, $rows[$i]->gps_speed, $rows[$i]->gps_course, $rows[$i]->gps_utc_date
+					, $rows[$i]->gps_mvd, $rows[$i]->gps_mv, $rows[$i]->gps_cs, $rows[$i]->gps_msg_ori, $rows[$i]->gps_time, $rows[$i]->gps_latitude_real
+					, $rows[$i]->gps_longitude_real, $rows[$i]->gps_odometer, $rows[$i]->gps_workhour
+					);
+					
+					$insert[$tblhist] = $sql;
+				}
+				else
+				{
+					$sql = sprintf
+					(" \r\n,('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')"
+					, $rows[$i]->gps_name, $rows[$i]->gps_host, $rows[$i]->gps_type, $rows[$i]->gps_utc_coord, $rows[$i]->gps_status, $rows[$i]->gps_latitude
+					, $rows[$i]->gps_ns, $rows[$i]->gps_longitude, $rows[$i]->gps_ew, $rows[$i]->gps_speed, $rows[$i]->gps_course, $rows[$i]->gps_utc_date
+					, $rows[$i]->gps_mvd, $rows[$i]->gps_mv, $rows[$i]->gps_cs, $rows[$i]->gps_msg_ori, $rows[$i]->gps_time, $rows[$i]->gps_latitude_real
+					, $rows[$i]->gps_longitude_real, $rows[$i]->gps_odometer, $rows[$i]->gps_workhour
+					);				
+					
+					$insert[$tblhist] .= $sql;	
+				}
+					
+				$j++;
+			}
+			
+			printf("%d\r\n", $j);
+			
+			if (! $insert) break;
+			
+			foreach($insert as $sql)
+			{
+				printf("Insert into %s\r\n", $tblhist);				
+			
+				$fout = fopen("hist.sql", "w");
+				fwrite($fout, $sql);
+				fclose($fout);
+				
+				system("c:\\xampp\\mysql\\bin\\mysql.exe -uroot -pgpsjayatrackervilani webtracking < hist.sql");
+				
+				//$this->db->query($sql);
+			}			
+						
+			if (isset($exit)) break;			
+			
+			$offset += $limit;
+		}		
+	}
+	
+	function initinfohist()
+	{
+		$this->db->where("config_name", "maxhist");
+		$q = $this->db->get("config");
+		$row = $q->row();
+		
+		$t = mktime(16, 59, 59, date('n')-$row->config_value, date('j'), date('Y'));
+		
+		$this->db->distinct();
+		$this->db->select("vehicle_device, vehicle_type");
+		$q = $this->db->get("vehicle");
+		
+		$rows = $q->result();
+		
+		$tblinfo = $this->config->item("table_hist_info");
+		
+		for($i=57; $i < count($rows); $i++)
+		{
+			printf("Processing...%d %s", $i+1, $rows[$i]->vehicle_device);
+			
+			if (! in_array(strtoupper($rows[$i]->vehicle_type), $this->config->item("vehicle_gtp"))) 
+			{
+				printf(" not gtp\r\n");
+				continue;
+			}
+			
+			$sql = sprintf(
+				"INSERT INTO %s%s (gps_info_device, gps_info_hdop, gps_info_io_port, gps_info_distance, gps_info_alarm_data, gps_info_ad_input, gps_info_utc_coord, gps_info_utc_date, gps_info_alarm_alert, gps_info_time, gps_info_status, gps_info_gps)
+				SELECT DISTINCT gps_info_device, gps_info_hdop, gps_info_io_port, gps_info_distance, gps_info_alarm_data, gps_info_ad_input, gps_info_utc_coord, gps_info_utc_date, gps_info_alarm_alert, gps_info_time, gps_info_status, gps_info_gps
+				FROM %sgps_info_hist
+				WHERE TRUE
+						AND (gps_info_time > '%s')
+						AND (gps_info_device = '%s')
+			", $this->db->dbprefix, $tblinfo[strtoupper($rows[$i]->vehicle_type)], $this->db->dbprefix, date("Y-m-d H:i:s", $t), $rows[$i]->vehicle_device);
+			
+			$this->db->query($sql);
+			printf(" %s OK\r\n", $tblinfo[strtoupper($rows[$i]->vehicle_type)]);
+		}
+	}
+	
+	function repairdistance()
+	{
+		$t = mktime(0, 0, 0, 6, 12, 2011);
+		while(1)
+		{
+			unset($rows);
+			//if ($t > mktime()) break;
+			
+			echo "date: ".date("d/m/Y", $t)."\r\n";
+			
+			$this->db->where("TIMESTAMPDIFF(DAY, gps_time, '".date("Y-m-d 00:00:00", $t)."') = 0", null, false);
+			$q = $this->db->get("webtracking_gps_hist_t5");
+			
+			if ($q->num_rows() == 0) return;
+			
+			$rows = $q->result();
+			
+			for($i=0; $i < count($rows); $i++)
+			{				
+				
+				$msg = $rows[$i]->gps_msg_ori;
+				
+				$distance = substr($msg, strlen($msg)-8);
+				$distance = ltrim($distance, '0');
+				
+				if (strlen($distance) == 0)
+				{
+					$ldistance = 0;
+				}
+				else
+				{
+					$ldistance = hexdec($distance);
+				}
+				
+				printf("%d %s@%s %s %s %s\r\n", $i+1, $rows[$i]->gps_name, $rows[$i]->gps_host, $msg, $distance, $ldistance);
+				
+				unset($update);
+				
+				$update['gps_info_distance'] = $ldistance;				
+				
+				$this->db->where("gps_info_gps", $rows[$i]->gps_id);
+				$this->db->update("gps_info_hist_t5", $update);
+			}
+			
+			$t += 24*3600;
+			sleep(1);
+		}
+	}
+	
+	function gent5id($maxlen=12, $prefix="")
+	{		
+		$len = $maxlen-strlen($prefix);
+		$lower = floor($len/2);
+		$upper = $len-$lower;
+
+		$max = "";
+		for($i=0; $i < $lower; $i++)
+		{
+			$max .= "9";
+		}
+		
+		$fmt1 = sprintf("%%0%dd", $lower);
+
+		$max1 = "";
+		for($i=0; $i < $upper; $i++)
+		{
+			$max1 .= "9";
+		}
+
+		$fmt2 = sprintf("%%0%dd", $upper);
+		
+		while(1)
+		{
+			$rand1 = rand(0, $max);
+			$rand2 = rand(0, $max1);
+			
+			$val = $prefix.sprintf($fmt1, $rand1).sprintf($fmt2, $rand2);
+			
+			$this->db->where("vehicle_device", $val.'@T5');
+			$num = $this->db->count_all_results("vehicle");
+			
+			if ($num) continue;
+			
+			echo $val.'@T5';
+			return;
+		}
+		
+	}
+	
+	function rollbackhistinfo()
+	{
+		$this->db->where("config_name", "maxhist");
+		$q = $this->db->get("config");
+		
+		if ($q->num_rows() == 0)
+		{
+			die("Hist config is not define");
+		}
+		
+		$row = $q->row();		
+		$t = mktime(16, 59, 59, date('n')-$row->config_value, date('j'), date('Y'));
+		
+		// ambil data kendaraan		
+
+		$this->db->distinct();
+		$this->db->select("vehicle_device, vehicle_type");		
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			die("Vehicle is empty");
+		}
+
+		$tblhists = $this->config->item("table_hist_info");
+
+		$i = 0;
+		$vehicles = $q->result();
+		foreach($vehicles as $vehicle)
+		{
+			printf("%d processing...%s", ++$i, $vehicle->vehicle_device);
+			if (! isset($tblhists[strtoupper($vehicle->vehicle_type)]))
+			{
+				printf("vehicle type can't found\r\n");
+				continue;
+			}
+						
+			$tblhist = $tblhists[strtoupper($vehicle->vehicle_type)];
+			
+			printf("...%s\r\n", $tblhist);
+
+			$this->db->limit(1);
+			$this->db->order_by("gps_info_time", "asc");
+			$this->db->where("gps_info_time >", date("Y-m-d H:i:s", $t));
+			$this->db->where("gps_info_device", $vehicle->vehicle_device);
+			$q = $this->db->get($tblhist);
+			
+			if ($q->num_rows() == 0)
+			{
+				printf("data hist is not found\r\n");
+				continue;
+			}
+
+			$row = $q->row();
+			$t1 = dbmaketime($row->gps_info_time);
+			
+			if (date("Ymd", $t1) == date("Ymd", $t))
+			{
+				printf("data hist is full\r\n");
+				continue;
+			}
+			
+			printf("%s-%s\r\n", date("Y-m-d H:i:s", $t), date("Y-m-d H:i:s", $t1));
+			
+			$sql = sprintf("
+				INSERT INTO %s%s 
+				(
+						gps_info_device, gps_info_hdop, gps_info_io_port, gps_info_distance, gps_info_alarm_data, gps_info_ad_input, gps_info_utc_coord
+					,	gps_info_utc_date, gps_info_alarm_alert, gps_info_time, gps_info_status, gps_info_gps
+				)
+				SELECT gps_info_device, gps_info_hdop, gps_info_io_port, gps_info_distance, gps_info_alarm_data, gps_info_ad_input, gps_info_utc_coord
+					,	gps_info_utc_date, gps_info_alarm_alert, gps_info_time, gps_info_status, gps_info_gps
+				FROM	%sgps_info_hist
+				WHERE	1
+						AND (gps_info_device = '%s')
+						AND (gps_info_time >= '%s')
+						AND (gps_info_time < '%s')					
+			", $this->db->dbprefix, $tblhist, $this->db->dbprefix, $vehicle->vehicle_device, date("Y-m-d H:i:s", $t), date("Y-m-d H:i:s", $t1));
+			
+			$this->db->query($sql);
+		}
+	}
+	
+	function rollbackhist()
+	{
+		$this->db->distinct();
+		$this->db->select("vehicle_device, vehicle_type");		
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			die("Vehicle is empty");
+		}
+		
+		$tblhists = $this->config->item("table_hist");
+
+		$i = 0;
+		$vehicles = $q->result();
+		foreach($vehicles as $vehicle)
+		{
+			printf("%d processing...%s\r\n", ++$i, $vehicle->vehicle_device);
+			if (! isset($tblhists[strtoupper($vehicle->vehicle_type)]))
+			{
+				printf("vehicle type can't found\r\n");
+				continue;
+			}
+			
+			$tblhist = $tblhists[strtoupper($vehicle->vehicle_type)];
+			
+			// cari tanggal terakhir
+			
+			$devices = explode("@", $vehicle->vehicle_device);
+			
+			$this->db->limit(1);
+			$this->db->order_by("gps_time", "asc");
+			$this->db->where("gps_name", $devices[0]);
+			$this->db->where("gps_host", $devices[1]);
+			$q = $this->db->get($tblhist);
+			
+			if ($q->num_rows() == 0)
+			{
+				printf("data hist is not found");
+				continue;
+			}
+			
+			$row = $q->row();
+			$t = dbmaketime($row->gps_time);
+			$t -= 24*3600;
+			
+			printf("%s\r\n", date("Y-m-d H:i:s", $t));
+			
+			$this->rollbackhist1($devices[0], $devices[1], $t);
+			
+			sleep(1);
+		}		
+	}
+
+	function rollbackhist1($name, $host, $t1)
+	{		
+		$this->db->where("config_name", "maxhist");
+		$q = $this->db->get("config");
+		
+		if ($q->num_rows() == 0)
+		{
+			die("Hist config is not define");
+		}
+		
+		$row = $q->row();		
+		$t = mktime(16, 59, 59, date('n')-$row->config_value, date('j'), date('Y'));				
+		
+		$this->db->where("vehicle_device", $name.'@'.$host);
+		$q = $this->db->get("vehicle");
+		
+		if ($q->num_rows() == 0)
+		{
+			die("vehicle can't found");
+		}
+		
+		$row = $q->row();
+		
+		$tblhists = $this->config->item("table_hist");
+		if (! isset($tblhists[strtoupper($row->vehicle_type)]))
+		{
+			die("vehicle type can't found");
+		}				
+		
+		$tblhist = $tblhists[strtoupper($row->vehicle_type)];
+		
+		while(1)
+		{
+			if ($t1 < $t) break;
+
+			$sql = sprintf(
+				"	INSERT INTO %s%s (gps_name, gps_host, gps_type, gps_utc_coord, gps_status, gps_latitude, gps_ns, gps_longitude, gps_ew
+											,	gps_speed, gps_course, gps_utc_date, gps_mvd, gps_mv, gps_cs, gps_msg_ori, gps_time, gps_latitude_real, gps_longitude_real
+											,	gps_odometer, gps_workhour)			
+					SELECT DISTINCT gps_name, gps_host, gps_type, gps_utc_coord, gps_status, gps_latitude, gps_ns, gps_longitude, gps_ew
+											,	gps_speed, gps_course, gps_utc_date, gps_mvd, gps_mv, gps_cs, gps_msg_ori, gps_time, gps_latitude_real, gps_longitude_real
+											,	gps_odometer, gps_workhour
+					FROM 	%sgps_hist
+					WHERE	((gps_utc_date%%10000)%%100+2000)*10000+(floor((gps_utc_date%%10000)/100))*100+(floor(gps_utc_date/10000)) = %s
+								AND (gps_name = '%s') AND (gps_host = '%s')
+			", $this->db->dbprefix, $tblhist, $this->db->dbprefix, date("Ymd", $t1), $name, $host
+			);
+	
+			printf("%s\r\n", date("Ymd", $t1)); 
+			
+			$this->db->query($sql);
+			$t1 -= 24*3600;
+		}
+	}
+	
+	function loaddataT1($dir, $re, $table)
+	{
+		if (! is_dir($dir))
+		{
+			printf("% is not directory\r\n", $dir);
+			return;
+		}
+
+		$dh = opendir($dir);
+		if (! $dh)
+		{
+			printf("can't open %\r\n", $dir);
+			return;
+		}
+		
+		$lensql = 0;
+		$ifile = 0;
+		while (($file = readdir($dh)) !== false) 
+		{
+			if (! preg_match($re, $file)) continue;
+			
+			printf("processing %s...\r\n", $file);
+			
+			$filename = sprintf("%s\\%s", $dir, $file);
+			$fin = fopen($filename, "r");
+			if (! $fin)
+			{
+				printf("can't open %s\r\n", $filename);
+				continue;
+			}
+						
+			while(! feof($fin))
+			{
+				$lines = explode(" ", trim(fgets($fin)));
+				if (count($lines) < 3) continue;
+				
+				$data = trim($lines[2]);				
+				$datas = explode(",", $data);			
+				
+				if (count($datas) < 12) 
+				{
+					printf("data not enough: %s\r\n", $data);
+					return;
+					continue;
+				}
+				
+				$data1s = explode(":", $datas[0]);
+				$devices = explode("@", $data1s[0]);
+				
+				unset($insert);
+				
+				//HY@HR:$GPRMC,120431.000,A,0614.9704,S,10656.8281,E,0.00,,090811,,,A*67
+				
+				$tgl = floor($datas[9]/10000);
+				$bln = floor(($datas[9]%10000)/100);
+				$thn = (($datas[9]%10000)%100)+2000;
+
+				$jam = floor($datas[1]/10000);
+				$min = floor(($datas[1]%10000)/100);
+				$det = ($datas[1]%10000)%100;
+
+				$t = mktime($jam, $min, $det, $bln, $tgl, $thn);				
+				
+				$insert['gps_name'] = $devices[0];
+				$insert['gps_host'] = $devices[1];
+				$insert['gps_type'] = $data1s[1];
+				$insert['gps_utc_coord'] = $datas[1];
+				$insert['gps_status'] = $datas[2];
+				$insert['gps_latitude'] = $datas[3];
+				$insert['gps_ns'] = $datas[4];
+				$insert['gps_longitude'] = $datas[5];
+				$insert['gps_ew'] = $datas[6];
+				$insert['gps_speed'] = $datas[7];
+				$insert['gps_course'] = $datas[8] ? $datas[8] : 0;
+				$insert['gps_utc_date'] = $datas[9];
+				$insert['gps_mvd'] = isset($datas[10]) ? $datas[10] : 0;
+				$insert['gps_mv'] = isset($datas[11]) ? $datas[11] : 0;
+				$insert['gps_cs'] = isset($datas[12]) ? $datas[12] : "";
+				$insert['gps_msg_ori'] = $data;
+				$insert['gps_time'] = date("Y-m-d H:i:s", $t);
+				$insert['gps_latitude_real'] = getLatitude($datas[3], $datas[4]);
+				$insert['gps_longitude_real'] = getLongitude($datas[5], $datas[6]);
+				$insert['gps_odometer'] = 0;
+				$insert['gps_workhour'] = 0;
+
+				$sql = $this->db->insert_string($table, $insert);				
+				
+				$logfilename = sprintf("c:\www\T1.%03d.sql", $ifile);
+				$this->append($logfilename, $sql.";");
+				
+				$lensql += strlen($sql);
+				$maxsize = 1024*1024*10;
+				
+				if ($lensql > $maxsize)
+				{
+					//$ifile++;
+					$lensql = 0;
+				}
+			}
+			
+			fclose($fin);
+		}
+		
+		closedir($dh);
+	}
+	
+	function loaddataT5($dir, $re, $table, $path, $logfilename)
+	{
+		if (! is_dir($dir))
+		{
+			printf("% is not directory\r\n", $dir);
+			return;
+		}
+
+		$dh = opendir($dir);
+		if (! $dh)
+		{
+			printf("can't open %\r\n", $dir);
+			return;
+		}
+		
+		while (($file = readdir($dh)) !== false) 
+		{
+			if (! preg_match($re, $file)) continue;
+			
+			printf("processing %s...\r\n", $file);
+			
+			$filename = sprintf("%s%s%s", $dir, $path, $file);
+			$fin = fopen($filename, "r");
+			if (! $fin)
+			{
+				printf("can't open %s\r\n", $filename);
+				continue;
+			}
+						
+			while(! feof($fin))
+			{
+				$lines = explode(" ", trim(fgets($fin)));
+				if (count($lines) < 2) continue;
+				
+				$data = trim($lines[1]);				
+				
+				unset($insert);
+				
+				$pos = 1;				
+				$id = substr($data, $pos, 12);
+				
+				$pos += 12;
+				$command = substr($data, $pos, 4);
+				
+				$pos += 4;
+				$ndigit = substr($data, $pos, 3);
+				
+				$pos += 3;
+				$id1 = substr($data, $pos, 12);
+
+				$pos += 12;
+				$d = substr($data, $pos, 6);
+
+				$pos += 6;
+				$status = substr($data, $pos, 1);
+
+				$pos += 1;
+				$lat = substr($data, $pos, 9);
+
+				$pos += 9;
+				$ns = substr($data, $pos, 1);
+
+				$pos += 1;
+				$lng = substr($data, $pos, 10);
+
+				$pos += 10;
+				$ew = substr($data, $pos, 1);
+
+				$pos += 1;
+				$speed = substr($data, $pos, 5);
+
+				$pos += 5;
+				$t = substr($data, $pos, 6);
+
+				$pos += 6;
+				$direction = substr($data, $pos, 6);
+
+				$pos += 6;
+				$io = substr($data, $pos, 8);
+
+				$pos += 8;
+				$io = substr($data, $pos, 8);
+
+				$pos += 8;
+				$milflag = substr($data, $pos, 1);
+
+				$pos += 1;
+				$distance = substr($data, $pos, 8);
+				
+				//(002100000086BP05000002100000086110809A0332.4791N09837.7579E057.4053950118.1901000005L000FA39F
+				
+				$time = dbintmaketime(sprintf("20%d", $d), $t);
+				
+				$insert['gps_name'] = $id;
+				$insert['gps_host'] = "T5";
+				$insert['gps_type'] = "T5";
+				$insert['gps_utc_coord'] = date("His", $time);
+				$insert['gps_status'] = $status;
+				$insert['gps_latitude'] = $lat;
+				$insert['gps_ns'] = $ns;
+				$insert['gps_longitude'] = $lng;
+				$insert['gps_ew'] = $ew;
+				$insert['gps_speed'] = $speed/1.852;
+				$insert['gps_course'] = $direction;
+				$insert['gps_utc_date'] = date("dmy", $time);
+				$insert['gps_mvd'] = 0;
+				$insert['gps_mv'] = 0;
+				$insert['gps_cs'] = "";
+				$insert['gps_msg_ori'] = $data;
+				$insert['gps_time'] = date("Y-m-d H:i:s", $time);
+				$insert['gps_latitude_real'] = getLatitude($lat, $ns);
+				$insert['gps_longitude_real'] = getLongitude($lng, $ew);
+				$insert['gps_odometer'] = 0;
+				$insert['gps_workhour'] = 0;
+
+				$sql = $this->db->insert_string($table, $insert);				
+
+				$this->append($logfilename, $sql.";");
+			}
+			
+			fclose($fin);
+		}
+		
+		closedir($dh);
+	}
+	
+	function doLoadDataT5()
+	{
+		$this->loaddataT5("/home/lacakmobil/server/T5_Pulse/log", "/streamT5Pulse_2011070(5|6|7)/", "gps_hist_t5_pulse", "/", "temp/log/t5.sql");
+	}
+	
+	function append($filename, $log)
+	{
+		$fout = fopen($filename, "a");
+		fwrite($fout, $log."\r\n");
+		fclose($fout);
+	}
+	
+	function gammu()
+	{
+		$filename = sprintf("%s../log/gammu/identify_%s_%d.log", BASEPATH, date("Ymd"), date("G"));
+		readfile($filename);
+	}
+	
+	function test()
+	{
+		unset($mail);
+		
+		$mail['subject'] = "test";
+		$mail['message'] = "test";
+		$mail['dest'] = "owner@adilahsoft.com"; 
+		$mail['bcc'] = "owner@adilahsoft.com";
+		$mail['sender'] = "support@lacak-mobil.com";
+		
+		lacakmobilmail($mail);	
+	}	
+	
+	function T5($d1, $d2, $port=10000)
+	{
+		$dir = $this->config->item("T5_LOG_PATH");
+		
+		if (! is_dir($dir)) 
+		{
+			die($dir." is not found");
+		}
+			
+		$dh = opendir($dir);
+		if (! $dh)
+		{
+			die($dir." is invalid");
+		}
+		
+		while (($file = readdir($dh)) !== false) 
+		{
+			$path = pathinfo($file);			
+			$filename = $path['filename'];
+			
+			if (! preg_match("/tracking(.*)/", $filename, $matches)) continue;
+			
+			$dates = explode("_", $matches[1]);
+			
+			if (($dates[0] < $d1) || ($dates[0] > $d2))
+			{
+				continue;
+			}
+						
+			$contents = file($dir."\\".$file);
+			for($i=0; $i < count($contents); $i++)
+			{
+				$line = trim($contents[$i]);
+				$pos = strpos($line, "ADD QUEUE:");
+				if ($pos === FALSE) continue;
+				
+				$data = trim(substr($line, $pos+strlen("ADD QUEUE:"))).")";
+				
+				$fp = pfsockopen( "udp://119.235.20.251", $port, $errno, $errstr );
+				
+				if (!$fp)
+				{
+					die("ERROR: $errno - $errstr\n");
+				}
+				
+				socket_set_timeout ($fp, 10);
+				$write = fwrite( $fp, $data );
+
+				fclose($fp);
+				
+				echo $data."\r\n";
+				sleep(1);
+			}
+			
+			//tracking20111221_234149.log
+		}	
+	}
+	
+	function T5Pulse($d1, $d2, $port=10001)
+	{
+		$dir = $this->config->item("T5_PULSE_LOG_PATH");
+		
+		if (! is_dir($dir)) 
+		{
+			die($dir." is not found");
+		}
+			
+		$dh = opendir($dir);
+		if (! $dh)
+		{
+			die($dir." is invalid");
+		}
+		
+		while (($file = readdir($dh)) !== false) 
+		{
+			$path = pathinfo($file);			
+			$filename = $path['filename'];
+			
+			if (! preg_match("/tracking(.*)/", $filename, $matches)) continue;
+			
+			$dates = explode("_", $matches[1]);
+			
+			if (($dates[0] < $d1) || ($dates[0] > $d2))
+			{
+				continue;
+			}
+						
+			$contents = file($dir."\\".$file);
+			for($i=0; $i < count($contents); $i++)
+			{
+				$line = trim($contents[$i]);
+				$pos = strpos($line, "ADD QUEUE:");
+				if ($pos === FALSE) continue;
+				
+				$data = trim(substr($line, $pos+strlen("ADD QUEUE:")));
+				
+				$fp = pfsockopen( "udp://119.235.20.251", $port, $errno, $errstr );
+				
+				if (!$fp)
+				{
+					die("ERROR: $errno - $errstr\n");
+				}
+				
+				socket_set_timeout ($fp, 10);
+				$write = fwrite( $fp, $data );
+
+				fclose($fp);
+				
+				echo $data."\r\n";
+				sleep(1);
+			}
+			
+			//tracking20111221_234149.log
+		}	
+	}	
+}
+
+/* End of file welcome.php */
+/* Location: ./system/application/controllers/welcome.php */
