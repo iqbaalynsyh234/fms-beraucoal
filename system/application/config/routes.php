@@ -88,12 +88,8 @@ $route['dashboard/intervention-2']                             = 'dashboard_inte
 
 $route['dashboard/intervention/pushalert-1']                   = 'dashboard_intervensi_postevent_pushalert/dashboardintervention';
 $route['dashboard/intervention/pushalert-2']                   = 'dashboard_intervensi_postevent_pushalert/dashboardintervention_2';
-
-
 // HRM
 $route['view/hrm/maps']                                        = 'maps/mapsstandardhrm';
-
-
 // DASHBOARD SMARTWATCH ABDITEK
 $route['abdiwatch/dashboard']                                   = 'dashboardview/abdiwatch_dashboard';
 

@@ -64,6 +64,47 @@
         margin-top: 0px;
     }
 
+    /* CSS */
+    input[type="range"] {
+        -webkit-appearance: none;
+        width: 70px;
+        /* Lebar slider */
+        height: 20px;
+        /* Tinggi slider */
+        background: #d3d3d3;
+        outline: none;
+        opacity: 0.7;
+        -webkit-transition: .2s;
+        transition: opacity .2s;
+    }
+
+    input[type="range"]:hover {
+        opacity: 1;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 20px;
+        /* Lebar slider thumb */
+        height: 20px;
+        /* Tinggi slider thumb */
+        background: #4CAF50;
+        /* Warna slider thumb */
+        cursor: pointer;
+    }
+
+    input[type="range"]::-moz-range-thumb {
+        width: 20px;
+        /* Lebar slider thumb */
+        height: 20px;
+        /* Tinggi slider thumb */
+        background: #4CAF50;
+        /* Warna slider thumb */
+        cursor: pointer;
+    }
+
+
     @media (max-width: 768px) {
         .page-content-wrapper {
             width: 100%;
@@ -300,14 +341,15 @@ var listCreatePolygon = [];
 var editedGeofenceIndex;
 var koordinatArrayAll = [];
 var polygons = [];
-var showLabel;
+var showLabel = true;
 var polygonsVisible = true;
 
-function InitMap(koordinatArrayAll, showLabel = false, showMarkers = false) {
+function InitMap(koordinatArrayAll, showLabel = true) {
 
     map = new google.maps.Map(document.getElementById('map-canvas'), {
+
         center: {
-            lat: koordinatArrayAll[0][0].lat, // This line causes the error
+            lat: koordinatArrayAll[0][0].lat,
             lng: koordinatArrayAll[0][0].lng
         },
 
@@ -359,7 +401,6 @@ function InitMap(koordinatArrayAll, showLabel = false, showMarkers = false) {
             alert('Latitude: ' + latitude + ', Longitude: ' + longitude);
         });
     }
-
 
     google.maps.event.addListener(drawingManager, 'overlaycomplete', function(event) {
         if (event.type === google.maps.drawing.OverlayType.POLYGON) {
@@ -448,18 +489,21 @@ function InitMap(koordinatArrayAll, showLabel = false, showMarkers = false) {
                 fontWeight: 'normal'
             } : null,
             icon: {
-                // url: 'https://maps.gstatic.com/mapfiles/transparent.png'
+                url: 'https://maps.gstatic.com/mapfiles/transparent.png',
                 size: new google.maps.Size(1, 1),
                 origin: new google.maps.Point(0, 0),
                 anchor: new google.maps.Point(0, 32)
             }
         });
+
     }
 
+    // buttom show hide polygon 
     var togglePolygonControlDiv = document.createElement('div');
     var togglePolygonControl = new TogglePolygonControl(togglePolygonControlDiv, map);
     map.controls[google.maps.ControlPosition.TOP_RIGHT].push(togglePolygonControlDiv);
 
+    // buttom show hide label 
     var toggleMarkerControlDiv = document.createElement('div');
     var toggleMarkerControl = new ToggleMarkerControl(toggleMarkerControlDiv, map);
     map.controls[google.maps.ControlPosition.TOP_RIGHT].push(toggleMarkerControlDiv);
@@ -472,63 +516,82 @@ function InitMap(koordinatArrayAll, showLabel = false, showMarkers = false) {
 
 // Custom control untuk toggle visibilitas marker
 function ToggleMarkerControl(controlDiv, map) {
-    var controlUI = document.createElement('div');
-    controlUI.style.backgroundColor = '#fff';
-    controlUI.style.border = '2px solid #fff';
-    controlUI.style.borderRadius = '3px';
-    controlUI.style.boxShadow = '0 2px 6px rgba(0,0,0,.3)';
-    controlUI.style.cursor = 'pointer';
-    controlUI.style.marginBottom = '10px';
-    controlUI.style.textAlign = 'center';
-    controlUI.title = 'Click to toggle markers and labels';
-    controlDiv.appendChild(controlUI);
+    // Create a container for the switch
+    var switchContainer = document.createElement('div');
+    switchContainer.style.marginBottom = '10px';
+    controlDiv.appendChild(switchContainer);
 
-    var controlText = document.createElement('div');
-    controlText.style.color = 'rgb(25,25,25)';
-    controlText.style.fontFamily = 'Roboto,Arial,sans-serif';
-    controlText.style.fontSize = '16px';
-    controlText.style.lineHeight = '38px';
-    controlText.style.paddingLeft = '5px';
-    controlText.style.paddingRight = '5px';
-    controlText.innerHTML = 'Toggle Markers and Labels';
-    controlUI.appendChild(controlText);
+    // Create the toggle slider
+    var toggleSlider = document.createElement('input');
+    toggleSlider.type = 'range';
+    toggleSlider.min = '0';
+    toggleSlider.max = '1';
+    toggleSlider.step = '1';
+    toggleSlider.value = showLabel ? '1' : '0'; // Set initial state
+    switchContainer.appendChild(toggleSlider);
 
-    controlUI.addEventListener('click', function() {
-        toggleMarkersAndLabels(); // Toggle markers and labels
+    // Event listener for slider change
+    toggleSlider.addEventListener('input', function() {
+        // Toggle the showLabel variable
+        showLabel = parseInt(this.value) === 1;
+
+        // Toggle markers and labels
+        for (var i = 0; i < markers.length; i++) {
+            markers[i].setVisible(showLabel); // Toggle marker visibility
+        }
+
+        // Call the showdata function
+        showdata();
     });
+
+    // Create the label for the switch
+    var switchLabel = document.createElement('label');
+    switchLabel.textContent = 'Toggle Markers and Labels';
+    switchLabel.style.fontSize = '11px';
+    switchContainer.appendChild(switchLabel);
 }
+
 
 // Custom control untuk toggle visibilitas polygon
 function TogglePolygonControl(controlDiv, map) {
-    var controlUI = document.createElement('div');
-    controlUI.style.backgroundColor = '#fff';
-    controlUI.style.border = '2px solid #fff';
-    controlUI.style.borderRadius = '3px';
-    controlUI.style.boxShadow = '0 2px 6px rgba(0,0,0,.3)';
-    controlUI.style.cursor = 'pointer';
-    controlUI.style.marginBottom = '10px';
-    controlUI.style.textAlign = 'center';
-    controlUI.title = 'Click to toggle polygons';
-    controlDiv.appendChild(controlUI);
+    var switchContainer = document.createElement('div');
+    switchContainer.style.marginBottom = '10px';
+    controlDiv.appendChild(switchContainer);
 
-    var controlText = document.createElement('div');
-    controlText.style.color = 'rgb(25,25,25)';
-    controlText.style.fontFamily = 'Roboto,Arial,sans-serif';
-    controlText.style.fontSize = '14px';
-    controlText.style.lineHeight = '38px';
-    controlText.style.paddingLeft = '5px';
-    controlText.style.paddingRight = '5px';
-    controlText.innerHTML = 'Toggle Polygons';
-    controlUI.appendChild(controlText);
+    // Create the toggle slider
+    var toggleSlider = document.createElement('input');
+    toggleSlider.type = 'range';
+    toggleSlider.min = '0';
+    toggleSlider.max = '1';
+    toggleSlider.step = '1';
+    toggleSlider.value = polygonsVisible ? '1' : '0'; // Set initial state
+    switchContainer.appendChild(toggleSlider);
 
-    controlUI.addEventListener('click', function() {
-        togglePolygons();
+    toggleSlider.addEventListener('input', function() {
+        // Toggle the polygonsVisible variable
+        polygonsVisible = parseInt(this.value) === 1;
+
+        // Toggle visibility of polygons
+        for (var i = 0; i < polygons.length; i++) {
+            if (polygonsVisible) {
+                polygons[i].setMap(map);
+            } else {
+                polygons[i].setMap(null);
+            }
+        }
     });
+
+    // Create the label for the switch
+    var switchLabel = document.createElement('label');
+    switchLabel.textContent = 'Toggle Polygons';
+    switchContainer.appendChild(switchLabel);
 }
 
+// function toggle markers
 function toggleMarkers() {
-    InitMap(koordinatArrayAll);
+    InitMap(koordinatArrayAll, showLabel);
 }
+
 
 function cariDanMarkerLokasi() {
     var lokasiInput = document.getElementById("lokasi").value;
@@ -647,28 +710,22 @@ function hapusData(index) {
     console.log(tampilkanListCreatePolygonUI);
 }
 
-function showLabelGeofence(showLabel) {
-    InitMap(koordinatArrayAll, showLabel);
-}
+// function showLabelGeofence(showLabel) {
+//     InitMap(koordinatArrayAll, showLabel);
+// }
 
 function showdata() {
-
     var deviceid = '<?php echo $vehicle->vehicle_device; ?>';
-
     jQuery.post('<?php echo base_url(); ?>geofencedrawing/label', {
-            deviceid: deviceid
-        },
-        function(r) {
-            if (r.success) {
-                InitMap(r.koordinat_array_all);
-
-            } else {
-
-                InitMap(r.koordinat_array_all);
-            }
-        },
-        "json"
-    );
+        deviceid: deviceid
+    }, function(r) {
+        if (r.success) {
+            // Pass showLabel value when initializing the map
+            InitMap(r.koordinat_array_all, showLabel);
+        } else {
+            InitMap(r.koordinat_array_all, showLabel);
+        }
+    }, "json");
 }
 showdata()
 
@@ -722,9 +779,9 @@ function showdata() {
         deviceid: deviceid
     }, function(r) {
         if (r.success) {
-            InitMap(r.koordinat_array_all);
+            InitMap(r.koordinat_array_all, showLabel);
         } else {
-            InitMap(r.koordinat_array_all);
+            InitMap(r.koordinat_array_all, showLabel);
         }
     }, "json");
 }
