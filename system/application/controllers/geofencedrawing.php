@@ -643,7 +643,6 @@ class Geofencedrawing extends Base
 	
 	function label()
 	{
-
 		$devid = isset($_POST['deviceid']) ? $_POST['deviceid'] : "";
 		if (strlen($devid) == 0) {
 			$callback['response'] = array(
@@ -783,8 +782,6 @@ class Geofencedrawing extends Base
 				$newGeojson
 			);
 
-
-
 			$query = $this->db->query($sql, $insert);
 
 		}
@@ -799,9 +796,7 @@ class Geofencedrawing extends Base
 			echo json_encode($callback);
 		}
 
-
 	}
-
 
 	function get($id)
 	{

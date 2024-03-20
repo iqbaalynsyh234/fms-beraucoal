@@ -489,7 +489,7 @@ function InitMap(koordinatArrayAll, showLabel = true) {
                 fontWeight: 'normal'
             } : null,
             icon: {
-                url: 'https://maps.gstatic.com/mapfiles/transparent.png',
+                // url: 'https://maps.gstatic.com/mapfiles/transparent.png'
                 size: new google.maps.Size(1, 1),
                 origin: new google.maps.Point(0, 0),
                 anchor: new google.maps.Point(0, 32)

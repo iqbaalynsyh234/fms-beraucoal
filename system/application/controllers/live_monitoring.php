@@ -877,9 +877,6 @@ class Live_monitoring extends Base
 
 
       $this->params['data_streaming'] = $data_multi_select;
-      // echo "<pre>";
-      // var_dump($data_multi_select);die();
-      // echo "<pre>";
       $html           = $this->load->view('newdashboard/development/dashboard/v_page_streaming', $this->params, true);
 
       if ($isshowvideo == 1) {
