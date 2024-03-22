@@ -273,12 +273,12 @@
                         style="margin-bottom: 20px; background-color: red;"
                         value=" <?php echo $this->lang->line("lreset"); ?> "
                         onclick="location='<?= base_url() ?>geofencedrawing/manage/<?php echo $this->uri->segment("3"); ?>/<?php echo $this->uri->segment("4"); ?>/<?php echo uniqid(); ?>'; " />
-
                 </fieldset>
                 <?php } ?>
 
                 <header class="panel-heading panel-heading-green" style="background-color: #4bb036;">Geofence Drawing
                     Polygon</header>
+                <!-- Tambahkan tombol switch untuk mengontrol visibilitas marker dan label -->
                 <div id="map-canvas" style="height: 600px; width: 700px margin-left: 300px; "></div>
                 <div id="info" style="position:absolute; color:red; font-family: Arial; height:200px; font-size: 30px;">
                 </div>
@@ -342,9 +342,10 @@ var editedGeofenceIndex;
 var koordinatArrayAll = [];
 var polygons = [];
 var showLabel = true;
-var polygonsVisible = true;
+var showMarkers = true;
+var polygonsVisible = false;
 
-function InitMap(koordinatArrayAll, showLabel = true) {
+function InitMap(koordinatArrayAll, showLabel = true, showMarker = false) {
 
     map = new google.maps.Map(document.getElementById('map-canvas'), {
 
@@ -374,10 +375,10 @@ function InitMap(koordinatArrayAll, showLabel = true) {
             clickable: true,
             draggable: false,
             editable: true,
-            fillColor: '#f6c79a', // field color draw polygon 
+            fillColor: '#f6c79a',
             fillOpacity: 0.5,
-            strokeColor: 'transparent', // Make the border color transparent
-            strokeOpacity: 0, // Make the border fully transparent
+            strokeColor: 'transparent',
+            strokeOpacity: 0,
         },
 
     });
@@ -454,7 +455,6 @@ function InitMap(koordinatArrayAll, showLabel = true) {
             '<button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>';
     }
 
-    // Iterate over koordinatArrayAll to draw existing polygons
     for (var i = 0; i < koordinatArrayAll.length; i++) {
         var paramCoordinates = koordinatArrayAll[i];
 
@@ -480,33 +480,34 @@ function InitMap(koordinatArrayAll, showLabel = true) {
         var center = bounds.getCenter();
 
         var geofenceName = "Geofence " + (i + 1);
-        var marker = new google.maps.Marker({
+        markers = new google.maps.Marker({
             position: center,
             map: map,
-            label: showLabel ? {
-                text: koordinatArrayAll[i][0].geofence_name,
+            label: {
+                text: showLabel ? "." : koordinatArrayAll[i][0].geofence_name,
                 color: 'black',
                 fontWeight: 'normal'
-            } : null,
+            },
             icon: {
-                // url: 'https://maps.gstatic.com/mapfiles/transparent.png'
-                size: new google.maps.Size(1, 1),
+                url: 'https://maps.gstatic.com/mapfiles/markers2/marker.png',
                 origin: new google.maps.Point(0, 0),
                 anchor: new google.maps.Point(0, 32)
             }
         });
 
+
+        // markers.setVisible(showLabel ? false : true);
+
     }
 
-    // buttom show hide polygon 
     var togglePolygonControlDiv = document.createElement('div');
     var togglePolygonControl = new TogglePolygonControl(togglePolygonControlDiv, map);
     map.controls[google.maps.ControlPosition.TOP_RIGHT].push(togglePolygonControlDiv);
 
-    // buttom show hide label 
-    var toggleMarkerControlDiv = document.createElement('div');
-    var toggleMarkerControl = new ToggleMarkerControl(toggleMarkerControlDiv, map);
-    map.controls[google.maps.ControlPosition.TOP_RIGHT].push(toggleMarkerControlDiv);
+    // Button to toggle marker and label visibility
+    var toggleMarkerLabelControlDiv = document.createElement('div');
+    var toggleMarkerLabelControl = new ToggleMarkerLabelControl(toggleMarkerLabelControlDiv, map);
+    map.controls[google.maps.ControlPosition.TOP_RIGHT].push(toggleMarkerLabelControlDiv);
 
     for (var i = 0; i < markers.length; i++) {
         markers[i].setMap(map);
@@ -514,41 +515,61 @@ function InitMap(koordinatArrayAll, showLabel = true) {
 
 }
 
-// Custom control untuk toggle visibilitas marker
-function ToggleMarkerControl(controlDiv, map) {
-    // Create a container for the switch
+function ToggleMarkerLabelControl(controlDiv, map) {
     var switchContainer = document.createElement('div');
     switchContainer.style.marginBottom = '10px';
     controlDiv.appendChild(switchContainer);
 
-    // Create the toggle slider
-    var toggleSlider = document.createElement('input');
-    toggleSlider.type = 'range';
-    toggleSlider.min = '0';
-    toggleSlider.max = '1';
-    toggleSlider.step = '1';
-    toggleSlider.value = showLabel ? '1' : '0'; // Set initial state
-    switchContainer.appendChild(toggleSlider);
+    // Create the toggle checkbox for markers and labels
+    var toggleMarkersLabelsCheckbox = document.createElement('input');
+    toggleMarkersLabelsCheckbox.type = 'checkbox';
+    toggleMarkersLabelsCheckbox.checked = showMarkers && showLabel; // Set initial state
+    switchContainer.appendChild(toggleMarkersLabelsCheckbox);
 
-    // Event listener for slider change
-    toggleSlider.addEventListener('input', function() {
-        // Toggle the showLabel variable
-        showLabel = parseInt(this.value) === 1;
+    toggleMarkersLabelsCheckbox.addEventListener('change', function() {
+        var isChecked = this.checked;
 
-        // Toggle markers and labels
+        showMarkers = isChecked;
+        showLabel = isChecked;
+
+        toggleMarkers();
+
+        showdata(showMarkers, showLabel);
+
+        // Atur visibilitas marker sesuai dengan kondisi setTransparentMarker()
         for (var i = 0; i < markers.length; i++) {
-            markers[i].setVisible(showLabel); // Toggle marker visibility
+            markers[i].setVisible(showMarkers ? true : setTransparentMarker());
         }
-
-        // Call the showdata function
-        showdata();
     });
 
-    // Create the label for the switch
-    var switchLabel = document.createElement('label');
-    switchLabel.textContent = 'Toggle Markers and Labels';
-    switchLabel.style.fontSize = '11px';
-    switchContainer.appendChild(switchLabel);
+    var markersLabelsLabel = document.createElement('label');
+    markersLabelsLabel.textContent = 'Show/Hidden Markers and Labels';
+    markersLabelsLabel.style.fontSize = '14px';
+    switchContainer.appendChild(markersLabelsLabel);
+}
+
+function setTransparentMarker() {
+    // return true or false based on condition
+    return false; // misalnya marker ingin diatur menjadi transparan
+}
+
+
+
+function toggleMarkers() {
+    for (var i = 0; i < markers.length; i++) {
+        markers[i].setVisible(showMarkers);
+
+        // Toggle label visibility based on showLabel and showMarkers
+        if (showLabel && showMarkers) {
+            markers[i].setLabel({
+                text: koordinatArrayAll[i][0].geofence_name,
+                color: 'black',
+                fontWeight: 'normal'
+            });
+        } else {
+            markers[i].setLabel(true);
+        }
+    }
 }
 
 
@@ -558,18 +579,14 @@ function TogglePolygonControl(controlDiv, map) {
     switchContainer.style.marginBottom = '10px';
     controlDiv.appendChild(switchContainer);
 
-    // Create the toggle slider
-    var toggleSlider = document.createElement('input');
-    toggleSlider.type = 'range';
-    toggleSlider.min = '0';
-    toggleSlider.max = '1';
-    toggleSlider.step = '1';
-    toggleSlider.value = polygonsVisible ? '1' : '0'; // Set initial state
-    switchContainer.appendChild(toggleSlider);
+    // Create the toggle checkbox
+    var toggleCheckbox = document.createElement('input');
+    toggleCheckbox.type = 'checkbox';
+    toggleCheckbox.checked = polygonsVisible; // Set initial state
+    switchContainer.appendChild(toggleCheckbox);
 
-    toggleSlider.addEventListener('input', function() {
-        // Toggle the polygonsVisible variable
-        polygonsVisible = parseInt(this.value) === 1;
+    toggleCheckbox.addEventListener('change', function() {
+        polygonsVisible = this.checked;
 
         // Toggle visibility of polygons
         for (var i = 0; i < polygons.length; i++) {
@@ -581,17 +598,37 @@ function TogglePolygonControl(controlDiv, map) {
         }
     });
 
-    // Create the label for the switch
+    // Create the label for the checkbox
     var switchLabel = document.createElement('label');
     switchLabel.textContent = 'Toggle Polygons';
+    switchLabel.style.fontSize = '14px';
     switchContainer.appendChild(switchLabel);
 }
 
-// function toggle markers
-function toggleMarkers() {
-    InitMap(koordinatArrayAll, showLabel);
-}
 
+// Function untuk toggle antara tampilan poligon + label dan hanya marker
+function toggleView() {
+    if (currentView === 'polygonAndLabel') {
+        for (var i = 0; i < polygons.length; i++) {
+            polygons[i].setVisible(false);
+            markers[i].setVisible(true);
+            markers[i].setLabel(null);
+        }
+        currentView = 'markerOnly';
+    } else {
+        // Tampilkan kembali poligon dan label
+        for (var i = 0; i < polygons.length; i++) {
+            polygons[i].setVisible(true);
+            markers[i].setVisible(showMarkers);
+            markers[i].setLabel(showLabel ? {
+                text: koordinatArrayAll[i][0].geofence_name,
+                color: 'black',
+                fontWeight: 'normal'
+            } : null);
+        }
+        currentView = 'polygonAndLabel';
+    }
+}
 
 function cariDanMarkerLokasi() {
     var lokasiInput = document.getElementById("lokasi").value;
@@ -602,14 +639,12 @@ function cariDanMarkerLokasi() {
     if (!isNaN(lat) && !isNaN(lng)) {
         var location = new google.maps.LatLng(lat, lng);
 
-        // Tambahkan marker ke lokasi yang dicari
         var marker = new google.maps.Marker({
             position: location,
             map: map,
             title: 'Lokasi Pencarian',
         });
 
-        // Pindahkan kamera ke lokasi yang dicari
         map.panTo(location);
 
         // Tampilkan info window dengan informasi koordinat
@@ -617,14 +652,12 @@ function cariDanMarkerLokasi() {
             content: 'Latitude: ' + lat + '<br>Longitude: ' + lng
         });
 
-        // Tampilkan info window saat marker di-klik
         google.maps.event.addListener(marker, 'click', function() {
             infoWindow.open(map, marker);
         });
     } else {
         alert(`Masukkan koordinat yang valid. ${lat} ${lng}`);
     }
-
 
 }
 
@@ -710,25 +743,6 @@ function hapusData(index) {
     console.log(tampilkanListCreatePolygonUI);
 }
 
-// function showLabelGeofence(showLabel) {
-//     InitMap(koordinatArrayAll, showLabel);
-// }
-
-function showdata() {
-    var deviceid = '<?php echo $vehicle->vehicle_device; ?>';
-    jQuery.post('<?php echo base_url(); ?>geofencedrawing/label', {
-        deviceid: deviceid
-    }, function(r) {
-        if (r.success) {
-            // Pass showLabel value when initializing the map
-            InitMap(r.koordinat_array_all, showLabel);
-        } else {
-            InitMap(r.koordinat_array_all, showLabel);
-        }
-    }, "json");
-}
-showdata()
-
 // Function to update the marker position based on user input
 function carilokasi() {
     var lokasiInput = document.getElementById("lokasi").value;
@@ -772,11 +786,13 @@ function togglePolygons() {
 }
 
 // Function to show data
-function showdata() {
+function showdata(showMarkers, showLabel) {
     var deviceid = '<?php echo $vehicle->vehicle_device; ?>';
 
     jQuery.post('<?php echo base_url(); ?>geofencedrawing/label', {
-        deviceid: deviceid
+        deviceid: deviceid,
+        showMarkers: showMarkers,
+        showLabel: showLabel
     }, function(r) {
         if (r.success) {
             InitMap(r.koordinat_array_all, showLabel);
@@ -786,28 +802,12 @@ function showdata() {
     }, "json");
 }
 
-// Function to initialize the map
 function initialize() {
     showdata();
 }
-
-function toggleMarkersAndLabels() {
-    setMapOnAll(null);
-    // var showMarkers = markers.length > 0 && markers[0].getMap() !== null;
-    // showMarkers = !showMarkers;
-
-    // // Toggle markers
-    // for (var i = 0; i < markers.length; i++) {
-    //     markers[i].setMap(showMarkers ? map : null);
-    // }
-
-    // // Toggle labels
-    // showLabel = showMarkers; // Update the global variable
-    // showLabelGeofence(showLabel); // Toggle geofence label visibility
-}
-
 google.maps.event.addDomListener(window, 'load', initialize);
 </script>
+
 
 <script>
 $(document).ready(function() {
