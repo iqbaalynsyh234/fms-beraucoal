@@ -25,10 +25,8 @@
         overflow-y: auto;
     }
 
-
     .modal-content {
         background-color: #f8f9fa;
-        /* Warna latar belakang modal */
         width: 100%;
     }
 
@@ -495,7 +493,6 @@ function InitMap(koordinatArrayAll, showLabel = true, showMarker = false) {
             }
         });
 
-
         // markers.setVisible(showLabel ? false : true);
 
     }
@@ -536,7 +533,6 @@ function ToggleMarkerLabelControl(controlDiv, map) {
 
         showdata(showMarkers, showLabel);
 
-        // Atur visibilitas marker sesuai dengan kondisi setTransparentMarker()
         for (var i = 0; i < markers.length; i++) {
             markers[i].setVisible(showMarkers ? true : setTransparentMarker());
         }
@@ -549,8 +545,7 @@ function ToggleMarkerLabelControl(controlDiv, map) {
 }
 
 function setTransparentMarker() {
-    // return true or false based on condition
-    return false; // misalnya marker ingin diatur menjadi transparan
+    return false;
 }
 
 
@@ -606,7 +601,6 @@ function TogglePolygonControl(controlDiv, map) {
 }
 
 
-// Function untuk toggle antara tampilan poligon + label dan hanya marker
 function toggleView() {
     if (currentView === 'polygonAndLabel') {
         for (var i = 0; i < polygons.length; i++) {
@@ -616,7 +610,6 @@ function toggleView() {
         }
         currentView = 'markerOnly';
     } else {
-        // Tampilkan kembali poligon dan label
         for (var i = 0; i < polygons.length; i++) {
             polygons[i].setVisible(true);
             markers[i].setVisible(showMarkers);
