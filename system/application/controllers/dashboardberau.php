@@ -2610,8 +2610,6 @@ class Dashboardberau extends Base
   			return;
   		}
 
-
-
   		// $datafix = array();
   		for ($j=0; $j < sizeof($thisreport); $j++) {
     		$reportdetailvideo          = $this->m_dashboardberau->getdetailreportvideo($dbtable, $thisreport[$j]['alarm_report_vehicle_id'], $thisreport[$j]['alarm_report_start_time']);
@@ -2831,10 +2829,9 @@ class Dashboardberau extends Base
      }else {
        $data_array_fix = $data_array_alert;
      }
-
-     // echo "<pre>";
-     // var_dump($data_array_fix);die();
-     // echo "<pre>";
+     
+     var_dump($data_array_fix);
+     die();
 
   		$this->params['content']   = $data_array_fix;
       $this->params['alarmtype'] = $alarmtype;

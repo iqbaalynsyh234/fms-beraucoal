@@ -276,7 +276,6 @@
 
                 <header class="panel-heading panel-heading-green" style="background-color: #4bb036;">Geofence Drawing
                     Polygon</header>
-                <!-- Tambahkan tombol switch untuk mengontrol visibilitas marker dan label -->
                 <div id="map-canvas" style="height: 600px; width: 700px margin-left: 300px; "></div>
                 <div id="info" style="position:absolute; color:red; font-family: Arial; height:200px; font-size: 30px;">
                 </div>

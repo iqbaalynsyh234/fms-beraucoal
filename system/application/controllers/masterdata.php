@@ -33,9 +33,9 @@ class Masterdata extends Base {
 
 		$master_speed_level = $this->m_masterdata->getallmdvrlevel();
 
-    $this->params['code_view_menu']          = "masterdata";
-    $this->params['speedlevel'] 					   = $master_speed_level;
-		$this->params['privilegecode'] 					 = $privilegecode;
+        $this->params['code_view_menu']          = "masterdata";
+        $this->params['speedlevel'] 			 = $master_speed_level;
+		$this->params['privilegecode'] 			 = $privilegecode;
 
 		$this->params["header"]                  = $this->load->view('newdashboard/partial/headernew', $this->params, true);
 		$this->params["chatsidebar"]             = $this->load->view('newdashboard/partial/chatsidebar', $this->params, true);
